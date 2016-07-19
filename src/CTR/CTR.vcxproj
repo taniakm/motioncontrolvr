@@ -18,6 +18,14 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="CPhantomDeviceWithClutch.cpp" />
+    <ClCompile Include="CTR.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="CPhantomDeviceWithClutch.h" />
+    <ClInclude Include="CTR.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectName>CTR</ProjectName>
     <ProjectGuid>{DF4A1F32-BA3E-4604-A9F5-721CAAA9EA71}</ProjectGuid>
@@ -246,18 +254,6 @@
       <ProgramDatabaseFile>$(TargetDir)$(TargetName).pdb</ProgramDatabaseFile>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="ConcentricTubeSet.cpp" />
-    <ClCompile Include="CPhantomDeviceWithClutch.cpp" />
-    <ClCompile Include="CTR.cpp" />
-    <ClCompile Include="Serial.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="CPhantomDeviceWithClutch.h" />
-    <ClInclude Include="ConcentricTubeSet.h" />
-    <ClInclude Include="CTR.h" />
-    <ClInclude Include="SerialClass.h" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
