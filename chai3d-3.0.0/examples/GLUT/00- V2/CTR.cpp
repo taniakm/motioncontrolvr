@@ -17,6 +17,7 @@
 #include "Util_LatencyTest2State.h"
 #include "Util_Render_Stereo.h"
 #include "OVR_Math.h"
+#include "CPhantomDeviceWithClutch.h"
 
 #include "Leap.h"
 #include "LeapListener.h"
@@ -25,6 +26,8 @@
 #include <iostream>
 #include <fstream>
 #include <conio.h>
+
+
 
 
 //------------------------------------------------------------------------------
@@ -39,6 +42,10 @@ using namespace std;
 #else
 #include "GLUT/glut.h"
 #endif
+
+//#define TESTBED
+#define DEBOUNCE_TIME 0.20
+
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
@@ -83,6 +90,8 @@ bool simulationFinished = true;			// flag to indicate if the haptic simulation h
 cFrequencyCounter frequencyCounter;		// frequency counter to measure the simulation haptic rate
 cVector3d cursorOffset = cVector3d(0,-0.05,-0.15);
 cToolCursor* tool;
+cVector3d clutchOffset = cVector3d(0,0,0);
+cVector3d clutchOffsetLocal = cVector3d(0,0,0);
 double	toolRadius = 0.01;
 double maxStiffness;
 
@@ -127,9 +136,22 @@ cLabel*						commandLabel;								// Label for displaying command type
 string						commandName = "";							// For use in the label
 cLabel*						materialLabel;								// Label for displaying material type
 string						materialName = "";							// For use in material label
-string						materialNameVec[2];
+string						materialNameVec[3];
+
+cLevel*						materialOptionDisplay[6];
+cLevel*						materialOptionDisplay1;
+cLevel*						materialOptionDisplay2;
+cLevel*						materialOptionDisplay3;
+cLevel*						materialOptionDisplay4;
+cLevel*						materialOptionDisplay5;
+cLevel*						materialOptionDisplay6;
+cLabel*						materialOptionLabel[3];
+cLabel*						materialOptionLabel1;
+cLabel*						materialOptionLabel2;
+cLabel*						materialOptionLabel3;
 // Variables for haptic interactions
 bool						gripped = false;
+bool						distalGripped = false;
 cVector3d					contactVecInit;
 cVector3d					tubeContactVecInit;
 cVector3d					lastContactVec;
@@ -143,18 +165,30 @@ cMatrix3d					rotModel;
 cMatrix3d					newRot;
 double						theta = 0.0;
 float						tubeTheta;
-cShapeLine*					contactLine; 
-cShapeLine*					lastContactLine;
+cShapeLine*					tanLine; 
+cShapeLine*					globalTanLine;
 bool						hapticsOn = true;
+bool						kappaChange = false;
+bool						lengthChange = false;
+int							sphereInd = 0;
+int							lastSphereInd = 0;
 bool						lineGripped[6];
+bool						lineGrippedForLengthChange[6];
+float						testIncrement = 0;
+float						deltaLength = 0;
 double						angle;
 double						lastAngle;
 bool						grippedToRot;
+bool						readyToChangeMaterial = false;
+bool						changeMaterial = false;
 int							grippedToRotInd;
+int							readyToChangeMaterialInd;
 long double					angleChange;
 cMatrix3d					deviceRot;
 cLabel*						alphaLabel;
 string						alphaValue = "";
+cVector3d					pA;
+cVector3d					pB;
 
 //------------------------------------------------------------------------------
 // KINEMATICS VARIABLES 
@@ -165,6 +199,7 @@ void kinematics(ConcentricTubeSet &set);
 void setTubeParams(ConcentricTubeSet set);
 cThread* kinematicsThread;
 // TUBE PARAMETERS
+float						hsize = 0.0005;
 int							nTubes = 3;							// Number of tubes in CTR *****CHANGE THIS AS NEEDED*******
 int							nStates = 2*nTubes + 12;
 float						*alpha_init;
@@ -177,19 +212,25 @@ float						*Beta_init;
 float						*Lc_init;
 float						*Ls_init;
 cMaterial					tubeColor[6];						// Color of each concentric tube (max of 6 right now)
-float						EVec[2];							// Vector of E values for different possible materials
-float						vVec[2];							// Vector of v values for different possible materials
-float						maxStrainVec[2];					// Vector of max strain values for different materials
+float						EVec[3];							// Vector of E values for different possible materials
+float						vVec[3];							// Vector of v values for different possible materials
+float						maxStrainVec[3];					// Vector of max strain values for different materials
 float						maxStrain;
 cVector3d					a1;
 cVector3d					a2;
 cVector3d					a3;
 cVector3d					a4;
 cShapeSphere*				proximalSphere;
+cShapeSphere*				distalSphere;
 cShapeSphere*				lengthSphere[6];
 cShapeLine*					centerLine[6];	
+cShapeLine*					debugLine;
 int							tubeStartInd[6];
 int							tubeMidInd[6];
+int							tubeEndInd[6];
+int							tubeStartIndReduced[6];
+int							tubeEndIndReduced[6];
+int							tubeMidIndReduced[6];
 int							lengthSphereInd[6];
 cLabel*						warningLabel;						// For warning if parameters are out of range based on material
 string						warningName = "";
@@ -202,6 +243,7 @@ std::vector<std::vector<float>> simulatedBeta;
 std::vector<std::vector<float>> simulatedAlpha;
 bool						calculated = false;
 bool						readyToDraw = false;
+bool						pauseSimPressed = false;
 int							currSetDrawing = 1000;
 int							currIter = 0;
 // INITIALIZATION PARAMETERS
@@ -212,12 +254,19 @@ double						*rValues;							// store computed r values
 cVector3d					*cValues;							// store computed c values
 cVector3d					*normals;							// store computed normals to each curve
 cVector3d					v2;
+cVector3d					v2_init;
+cVector3d					v2_temp;
+cVector3d					globalTanVec;
 cShapeSphere*				pointSphere[10];					// spheres for showing points identified by user for defining initial curves (set to some random size here)
 bool						CTRInitialized = false;				// starts as false, and only changed to true once initial points are identified and initial CTR computed
 int							pointNum = 0;
 bool						readyToDrawInitCTR = false;
 double						initAngle;
 double						*savedAlphas;						// for testing
+cPrecisionClock				otherClock;							// for timing other tasks that need to happen
+cPrecisionClock				debounceClock;						// for timing other tasks that need to happen
+
+Eigen::VectorXf circVec(4);
 
 // Initial tube parameters in [m]
 float						length_straight = 0.10;	
@@ -279,7 +328,14 @@ float						eyeYaw;
 cVector3d					eyePos;
 cTransform					headTransform;
 float						oculusOffset = 0.4;   //0.6
+float						defaultOculusOffset = 0.4;
+cMatrix3d					defaultRotation;
+cMatrix3d					lastRot;
+int							rotNum = 0;
 
+
+float						userEyeSeparation = 0.005;
+float						userEyeFocalLength = 0.5;
 //------------------------------------------------------------------------------
 // LEAP VARIABLES
 //------------------------------------------------------------------------------
@@ -376,12 +432,14 @@ bool						decreaseLength = false;
 bool						rotateModeOn = false;
 bool						simulationModeOn = false;
 bool						redrawTubes = false;
+bool						rotating = false;
 
 //------------------------------------------------------------------------------
 // DATA COLLECTION VARIABLES
 //------------------------------------------------------------------------------
 cThread*					dataThread;								// thread to run data collection
 cPrecisionClock				clock;
+int							fileNum = 1;	
 std::ofstream				myFile("test.txt");						// set up file for storing data
 void collectData(void);
 
@@ -434,26 +492,32 @@ void showInteractionBox(InteractionBox interactionBox);
 //------------------------------------------------------------------------------
 void drawCTR(float length_straight, float length_curved, float curvature_radius, float diameter);
 void drawTubes(ConcentricTubeSet set);
+void drawSimulation(ConcentricTubeSet set);
 void updateInsertionPoint(ConcentricTubeSet set, float insertPointX, float insertPointY, float insertPointZ);
 void updateOrientation(ConcentricTubeSet set, cVector3d &axisToRotateAbout);
 void updateTubeLength(ConcentricTubeSet &set, int tubeIndex, float deltaLs, float deltaLc);
 void updateTubeCurvature(ConcentricTubeSet &set, int tubeIndex, cVector3d a1, cVector3d a2, cVector3d a3, cVector3d a4);
 void updateTubeMaterial(ConcentricTubeSet &set, int tubeIndex, int materialNumber);
+void updateTubeMaterialAndConfig(ConcentricTubeSet &set);
 void updateTubeAlpha(ConcentricTubeSet &set, int tubeIndex, double angleChange);
 void calculateConfig(ConcentricTubeSet &set);
 void simulate(void);
+cMatrix3d calculateRotMat(cVector3d pA, cVector3d pB);
 
 int findCurves(vector<cVector3d> &circParam);
 int curveFunc(const gsl_vector * x, void *circParam, gsl_vector * f);
 cVector3d computeCurveParam(ConcentricTubeSet &set,  cVector3d a1, cVector3d a2, cVector3d v);
 void computeTubeParam(ConcentricTubeSet &set, void *circParam);
+cVector3d computeEndPoint(cVector3d tubeStartPoint, cVector3d tubeEndPoint, cVector3d curveMidPoint, float lineLength);
 void drawInitCTR(ConcentricTubeSet &set);
 void updateInitOrientation(ConcentricTubeSet set, cVector3d &axisToRotateAbout, double angle);
 void computeInitOrientation(ConcentricTubeSet set);
+void computeOptPath(ConcentricTubeSet &set, void *circParam);
 void saveTube(const char *path, const ConcentricTubeSet::tube *t);
 void loadTube(const char *path, ConcentricTubeSet::tube *t);
 void printTube(ConcentricTubeSet set);
 void reinitialize(void);
+void getClutchOffset(void);
 
 //------------------------------------------------------------------------------
 // DECLARED FUNCTIONS FOR OTHER
@@ -468,7 +532,8 @@ void rotateAll(void);																				// Rotate both the mesh and the tube
 void colorPixels(unsigned int x, unsigned int y);
 void zoom(float deltaOffset);
 void checkIndexCollision(void);
-
+void showDefaultView(cMatrix3d defaultRot, float defaultOff);
+void setShowMaterialLabels(void);
 
 //==============================================================================
 /*
@@ -687,8 +752,10 @@ int main(int argc, char* argv[])
 	//--------------------------------------------------------------------------
 	// HAPTIC DEVICE
 	//--------------------------------------------------------------------------
-	handler = new cHapticDeviceHandler();						// create haptic device handler
-	handler->getDevice(hapticDevice, 0);						// get a handle to first haptic device
+	//handler = new cHapticDeviceHandler();						// create haptic device handler
+	//handler->getDevice(hapticDevice, 0);						// get a handle to first haptic device
+	hapticDevice = std::shared_ptr < cGenericHapticDevice > ((cGenericHapticDevice *)(new cPhantomDeviceWithClutch(0)));
+	hapticDevice->open();
 	cHapticDeviceInfo info = hapticDevice->getSpecifications();	// retrieve info about current device
 	
 	// create a tool (cursor) and insert into the world
@@ -705,6 +772,7 @@ int main(int argc, char* argv[])
 
     // stiffness properties
     maxStiffness = info.m_maxLinearStiffness / workspaceScaleFactor;
+	printf("maxStiffness: %f \n", maxStiffness);
 	//--------------------------------------------------------------------------
 	// CAMERA FOR OCULUS 
 	//--------------------------------------------------------------------------
@@ -718,8 +786,8 @@ int main(int argc, char* argv[])
 	usingOculus = true;
 
     // set stereo eye separation and focal length (applies only if stereo is enabled)
-    camera->setStereoEyeSeparation(0.03);
-	camera->setStereoFocalLength(1.8);
+    camera->setStereoEyeSeparation(userEyeSeparation);
+	camera->setStereoFocalLength(userEyeFocalLength);
 
 	// Set up lighting conditions
     light = new cDirectionalLight(world);					// create a directional light source
@@ -736,6 +804,21 @@ int main(int argc, char* argv[])
                               cVector3d(0,0,0));			
     world->addChild(velocity);								// insert line inside world
 
+	// For testing tangent line 
+	tanLine = new cShapeLine(cVector3d(0,0,0), cVector3d(1,0,0));
+	cursor->addChild(tanLine);
+	tanLine->m_colorPointA.setPinkDeep();
+	tanLine->m_colorPointB.setPinkDeep();
+	tanLine->setLineWidth(10);
+	tanLine->setEnabled(false);
+
+	globalTanLine = new cShapeLine(cVector3d(0,0,0), cVector3d(1,0,0));
+	world->addChild(globalTanLine);
+	globalTanLine->m_colorPointA.setWhite();
+	globalTanLine->m_colorPointB.setWhite();
+	globalTanLine->setLineWidth(10);
+	globalTanLine->setEnabled(false);
+
 
 	//--------------------------------------------------------------------------
 	// ----------------- Create mesh with 3D models ----------------------------
@@ -748,6 +831,8 @@ int main(int argc, char* argv[])
 	originSphere->setMaterial(originColor);
 	originSphere->setEnabled(false);
 	originSphere->setLocalPos(0,0,-0.2);
+		//***** testing for setting default view ******
+	defaultRotation = originSphere->getLocalRot();
 
 	// Add sphere for rotating model
 	rotateSphere = new cShapeSphere(0.1);
@@ -842,6 +927,7 @@ int main(int argc, char* argv[])
 	if(cLoadFileOBJ(stone_mesh, stone_fileName	 )){
 		printf("--------> stone file loaded!! <-------- \n");
 	}
+	stone_mesh->translate(0,-.02,.065);
 	stone_mesh->setShowEnabled(true);
 	stone_mesh->setUseVertexColors(true);
 	stone_mesh->setUseMaterial(true);
@@ -869,6 +955,7 @@ int main(int argc, char* argv[])
 	vertColor.setBlue();
 	renal_pelvis_mesh->setVertexColor(vertColor);
 	renal_pelvis_mesh->translate(-meshCenter);
+	/*renal_pelvis_mesh->setTransparencyLevel(0.9);*/
 	// Add haptic effect to mesh
 	/*renal_pelvis_mesh->computeBoundaryBox(true);
 	renal_pelvis_mesh->createAABBCollisionDetector(toolRadius);
@@ -921,10 +1008,10 @@ int main(int argc, char* argv[])
 	//----------------------------------
 	//----- Add sphere for testing -----
 	//----------------------------------
-	//posSphere = new cShapeSphere(0.05);
-	//world->addChild(posSphere);
-	//posSphere->m_material->setYellow();
-	//posSphere->setEnabled(false);
+	posSphere = new cShapeSphere(0.01);
+	world->addChild(posSphere);
+	posSphere->m_material->setYellow();
+	posSphere->setEnabled(false);
 
 
 
@@ -936,7 +1023,7 @@ int main(int argc, char* argv[])
 	//----------------------------------
 	//- Add sphere for origin of tube --
 	//----------------------------------
-	tubeStartSphere = new cShapeSphere(0.01);
+	tubeStartSphere = new cShapeSphere(0.03);
 	//tubeStartSphere->setLocalPos(0,-0.1,-0.2);
 	//world->addChild(tubeStartSphere);
 	originSphere->addChild(tubeStartSphere);
@@ -953,10 +1040,20 @@ int main(int argc, char* argv[])
 	//// add another test sphere
 	testSphere = new cShapeSphere(0.01);
 	//camera->addChild(testSphere);
-	originSphere->addChild(testSphere);
+	//originSphere->addChild(testSphere);
+	world->addChild(testSphere);
 	testSphere->setLocalPos(0,0,0);
 	testSphere->m_material->setPurpleDarkOrchid();
 	testSphere->setEnabled(false);
+
+	// For debugging
+	//debugLine = new cShapeLine(cVector3d(0,0,0), cVector3d(1,0,0));
+	//originSphere->addChild(debugLine);
+	//debugLine->setLineWidth(1.0);
+	////debugLine->setEnabled(false);
+	//debugLine->m_colorPointA.setGreenChartreuse();
+	//debugLine->m_colorPointB.setGreenChartreuse();
+
 	
 	//----------------------------------
 	//- Add sphere for selected points -
@@ -1004,7 +1101,42 @@ int main(int argc, char* argv[])
 	waitLabel->setLocalPos(labelPos(0) + 150,labelPos(1) + 250,0);
 	waitLabel->setEnabled(false);
 
+	// -------- create levels to display the different material options --------
+	cColorf panelColor;
+	panelColor.setGrayDim();
 
+	for(int i=0; i<6; i++) {
+		materialOptionDisplay[i] = new cLevel();
+		camera->m_frontLayer->addChild(materialOptionDisplay[i]);
+		materialOptionDisplay[i]->m_colorInactive.setGrayDim();
+		materialOptionDisplay[i]->m_colorActive.setYellowGold();
+		materialOptionDisplay[i]->setNumIncrements(30.0);
+		materialOptionDisplay[i]->setRange(0.0, 30.0);
+		materialOptionDisplay[i]->setValue(0.0);
+		materialOptionDisplay[i]->setSingleIncrementDisplay(false);
+		materialOptionDisplay[i]->setEnabled(false);
+	}
+	// Set positions of all levels
+	materialOptionDisplay[0]->setLocalPos(1200,300,0);
+	materialOptionDisplay[3]->setLocalPos(1200,302,0);
+	materialOptionDisplay[1]->setLocalPos(1200,420,0);
+	materialOptionDisplay[4]->setLocalPos(1200,422,0);
+	materialOptionDisplay[2]->setLocalPos(1200,540,0);
+	materialOptionDisplay[5]->setLocalPos(1200,542,0);
+	
+	// create labels to display on top of each level
+	for(int i=0; i<3; i++) {
+		materialOptionLabel[i] = new cLabel(font);					
+		camera->m_frontLayer->addChild(materialOptionLabel[i]);		
+		materialOptionLabel[i]->setLocalPos(materialOptionDisplay[i]->getLocalPos()(0)+35,materialOptionDisplay[i]->getLocalPos()(1)+20,0);
+		materialOptionLabel[i]->rotateWigetDeg(90);
+		materialOptionLabel[i]->m_fontColor.setPurple();
+		materialOptionLabel[i]->setColor(panelColor);
+		materialOptionLabel[i]->setEnabled(false);
+	}
+	materialOptionLabel[0]->setString("Nitinol");
+	materialOptionLabel[1]->setString("PEBA");
+	materialOptionLabel[2]->setString("Accura");
 	
 	//------------------------------------------------------------------------------
 	// Set up leap graphics
@@ -1073,16 +1205,24 @@ int main(int argc, char* argv[])
     // SET UP CONCENTRIC TUBE ROBOT PARAMETERS
     //--------------------------------------------------------------------------
 	//Set up possible materials to use
+	// NITINOL
 	materialNameVec[0] = "Nitinol";
 	EVec[0] = 50000000000;
 	vVec[0] = 0.33;
 	maxStrainVec[0] = 0.08;
+	// PEBA 2301
 	materialNameVec[1] = "PEBA 2301";
 	EVec[1] = 75;
 	vVec[1] = 0.4;				// estimated based on poisson's ratio of polyethylene/nylons/plastics
-	maxStrainVec[1] = 1;
+	maxStrainVec[1] = .11;
+	// ACCURA 25
+	materialNameVec[2] = "Accura 25";
+	EVec[2] = 1625;
+	vVec[2] = 0.4;				// estimated based on poisson's ratio of polypropylene/ABS
+	maxStrainVec[2] = .04;
+
 	
-	// Call function to se up all tube parameters
+	// Call function to set up all tube parameters
 	setTubeParams(set);
 
 	for(int i=0; i<nTubes; i++) {
@@ -1097,15 +1237,21 @@ int main(int argc, char* argv[])
 		t.Beta = Beta_init[i];
 		t.Lc = Lc_init[i];
 		t.Ls = Ls_init[i];
+		t.materialNum = 0;		// set initial material to Nitinol
 
 		t.moment_guess = 0;
 
 		set.addTube(t);
 	}
+	// Call function to set up material display properties
+	for(int i=0; i<nTubes; i++) {
+		updateTubeMaterial(set, i, 0);
+	}
 
 	//Set up other parameters
 	for(int i=0; i<6; i++) {
 		lineGripped[i] = false;
+		lineGrippedForLengthChange[i] = false;
 	}
 
     //--------------------------------------------------------------------------
@@ -1113,7 +1259,18 @@ int main(int argc, char* argv[])
     //--------------------------------------------------------------------------
 	// create a thread which starts computing the kinematics
     kinematicsThread = new cThread();
-	//kinematicsThread->start(runKinematics, CTHREAD_PRIORITY_HAPTICS);
+
+
+
+	////////////////////////////////////////////////////////////////
+	// ********************** TEST BED ****************************
+	///////////////////////////////////////////////////////////////
+#ifdef TESTBED
+	kinematicsThread->start(runKinematics, CTHREAD_PRIORITY_HAPTICS);
+#endif
+
+
+
 
 	//char path[150];
 	//for(int i=0; i<nTubes; i++) {
@@ -1153,6 +1310,10 @@ int main(int argc, char* argv[])
     // start the main graphics rendering loop
     glutTimerFunc(50, graphicsTimer, 0);
     glutMainLoop();
+
+
+
+
 
     // close everything
     close();
@@ -1250,7 +1411,10 @@ void keySelect(unsigned char key, int x, int y)
 			myFile << "alpha2: " << data[i].alpha2 << "\t" << "\t";
 			myFile << "Beta2: " << data[i].Beta2 << "\t" << "\t";
 			myFile << "Lc2: " << data[i].Lc2 << "\t" << "\t";
-			myFile << "Ls2: " << data[i].Ls2 << "\n";
+			myFile << "Ls2: " << data[i].Ls2 << "\t" << "\t";
+			myFile << "tube0material" << data[i].materialNum0 << "\t" << "\t";
+			myFile << "tube1material" << data[i].materialNum1 << "\t" << "\t";
+			myFile << "tube2material" << data[i].materialNum2 << "\n";
 		}
 		myFile.close();
 		printf("data written to file \n");
@@ -1328,13 +1492,6 @@ void keySelect(unsigned char key, int x, int y)
 		transparentMesh = liver_mesh;
 		setTransparent(transparentMesh);
 	}
-
-	// 
-	if (key == 'g')
-	{
-		checkGrip();
-	}
-
 	
 	// Rotate tube RiGHT
 	if (key == '1') 
@@ -1382,94 +1539,6 @@ void keySelect(unsigned char key, int x, int y)
 	{
 		rotateAll();
 	}
-
-	// Increase radius of curvature of tube
-	if (key == 'h')
-	{
-		curvature_radius = curvature_radius + 0.01;
-		drawCTR(length_straight, length_curved, curvature_radius, diameter);
-		commandName = "Increase radius of curvature";
-	}
-
-	// Decrease radius of curvature of tube
-	if (key == 'n')
-	{
-		curvature_radius = curvature_radius - 0.01;
-		drawCTR(length_straight, length_curved, curvature_radius, diameter);
-		commandName = "Decrease radius of curvature";
-	}
-
-	// Increase length of straight part of tube
-	if (key == 'j')
-	{
-		/*length_straight = length_straight + 0.01;
-		drawCTR(length_straight, length_curved, curvature_radius, diameter);*/
-		commandName = "Increase straight length";
-		int tubeIndex = 1;
-		float deltaLs = 0.01;
-		float deltaLc = 0;
-		updateTubeLength(set, tubeIndex, deltaLs, deltaLc);
-	}
-
-	// Decrease length of straight part of tube
-	if (key == 'm')
-	{
-		/*length_straight = length_straight - 0.01;;
-		drawCTR(length_straight, length_curved, curvature_radius, diameter);*/
-		commandName = "Decrease straight length";
-
-		int tubeIndex = 1;
-		float deltaLs = -0.01;
-		float deltaLc = 0;
-		updateTubeLength(set, tubeIndex, deltaLs, deltaLc);
-	}
-
-	// Increase length of curved part of tube
-	if (key == 'k')
-	{
-		/*length_curved = length_curved + 0.01;
-		drawCTR(length_straight, length_curved, curvature_radius, diameter);*/
-		commandName = "Increase curved length";
-
-		int tubeIndex = 1;
-		float deltaLs = 0;
-		float deltaLc = 0.002;
-		updateTubeLength(set, tubeIndex, deltaLs, deltaLc);
-	}
-
-	// Decrease length of curved part of tube
-	if (key == ',')
-	{
-		/*length_curved = length_curved - 0.01;
-		drawCTR(length_straight, length_curved, curvature_radius, diameter);*/
-		commandName = "Decrease curved length";
-
-		int tubeIndex = 1;
-		float deltaLs = 0;
-		float deltaLc = -0.002;
-		updateTubeLength(set, tubeIndex, deltaLs, deltaLc);
-	}
-
-	// Increase curvature
-	if (key == ';')
-	{
-		commandName = "Increase curvature";
-
-		int tubeIndex = 1;
-		float deltaK = 1;
-		//updateTubeCurvature(set, tubeIndex, deltaK);
-	}
-
-	// Decrease curvature
-	if (key == '/')
-	{
-		commandName = "Decrease curvature";
-
-		int tubeIndex = 1;
-		float deltaK = -1;
-		//updateTubeCurvature(set, tubeIndex, deltaK);
-	}
-	 
 
 	// Compute kinematics
 	if (key == 'q') 
@@ -1520,14 +1589,38 @@ void keySelect(unsigned char key, int x, int y)
 
 	}
 
-	// Erase initial points
-	if (key == 'z') 
-	{
-		for(int i=0; i<(nTubes+1); i++) {
-			pointSphere[i]->setEnabled(false);	
+	// Change focal length/distance
+	if(key == 'o') {
+		userEyeFocalLength = userEyeFocalLength + 0.1;
+		camera->setStereoFocalLength(userEyeFocalLength);
+		printf("focal length: %f \n",userEyeFocalLength);
+	}
+
+	if(key == 'i') {
+		userEyeFocalLength = userEyeFocalLength - 0.1;
+		if(userEyeFocalLength < 0.1) {
+			userEyeFocalLength = 0.1;
 		}
+		camera->setStereoFocalLength(userEyeFocalLength);
+		printf("focal length: %f \n",userEyeFocalLength);
+	}
+	// Change eye separation
+	if(key == 'k') {
+		userEyeSeparation = userEyeSeparation + 0.005;
+		camera->setStereoEyeSeparation(userEyeSeparation);
+		printf("eye separation: %f \n",userEyeSeparation);
+	}
+	if(key == 'j') {
+		userEyeSeparation = userEyeSeparation - 0.005;
+		if(userEyeSeparation < 0.001) {
+			userEyeSeparation = 0.001;
+		}
+		camera->setStereoEyeSeparation(userEyeSeparation);
+		printf("eye separation: %f \n",userEyeSeparation);
 	}
 	
+
+
 	if (key == 'b')
 	{
 		char *buffer;
@@ -1582,7 +1675,7 @@ void graphicsTimer(int data)
 	} else if(simulationModeOn && calculated && readyToDraw) {
 		// Stop haptic loop from running
 		simulationRunning = false;
-		tool->stop();
+		//tool->stop();
 	}
 
 	// If configurations have been calculated, draw them for all time steps
@@ -1626,6 +1719,8 @@ void updateGraphics(void)
 	alphaLabel->setString("Delta alpha: " + alphaValue);
 	waitLabel->setString(waitName);
 
+	//materialOptionDisplay->setLocalPos(1200,100,0);
+
 	/////////////////////////////////////////////////////////////////////
     // UPDATE OCULUS AND LEAP
     /////////////////////////////////////////////////////////////////////
@@ -1633,28 +1728,42 @@ void updateGraphics(void)
 	//updateLeap();									// Read Leap sensors
 	camera->setLocalTransform(headTransform);		// Set camera based on Oculus readings
 
-
-	static unsigned long printCount = 0;
-	if (printCount % 10 == 0){
-
-		/*cMatrix3d deviceRot = tool->getDeviceGlobalRot();
-		cVector3d axis; double angle;
-		deviceRot.toAxisAngle(axis, angle);
-		printf("angle:  %f  \n",angle);*/
-
-		/*cVector3d rPos = rightCenterSphere->getLocalPos();
-		printf("Local x: %f, Local y: %f, Local z: %f \n", rPos(0),rPos(1),rPos(2));
-		cVector3d modelPos = rightCenterSphere->getGlobalPos();
-		printf("Global x: %f, Global y: %f, Global z: %f \n", modelPos(0),modelPos(1),modelPos(2));
-		printf("\n");*/
-
-		//printf("Eye Yaw: %f, Pitch: %f, Roll: %f \n", eyeYaw, eyePitch, eyeRoll);
-
-		// To output information about fingerID
-		/*for(Leap::FingerList::const_iterator fl = fingers.begin(); fl != fingers.end(); fl++)
-		std::cout << "Finger ID: " << (*fl).id() << std::endl;*/	
+	// Check on timing for erasing initial points and tangent vector and erase after 10 seconds
+	if(otherClock.getCurrentTimeSeconds() > 7) {
+		// Erase intial points
+		for(int i=0; i<(nTubes+1); i++) {
+			pointSphere[i]->setEnabled(false);	
+		}
+		// Erase initial tangent ghost vector
+		globalTanLine->setEnabled(false);
+		tubeStartSphere->setEnabled(false);
+		otherClock.stop();
+		otherClock.reset();
 	}
-	printCount++;
+
+
+
+	//static unsigned long printCount = 0;
+	//if (printCount % 10 == 0){
+
+	//	/*cMatrix3d deviceRot = tool->getDeviceGlobalRot();
+	//	cVector3d axis; double angle;
+	//	deviceRot.toAxisAngle(axis, angle);
+	//	printf("angle:  %f  \n",angle);*/
+
+	//	/*cVector3d rPos = rightCenterSphere->getLocalPos();
+	//	printf("Local x: %f, Local y: %f, Local z: %f \n", rPos(0),rPos(1),rPos(2));
+	//	cVector3d modelPos = rightCenterSphere->getGlobalPos();
+	//	printf("Global x: %f, Global y: %f, Global z: %f \n", modelPos(0),modelPos(1),modelPos(2));
+	//	printf("\n");*/
+
+	//	//printf("Eye Yaw: %f, Pitch: %f, Roll: %f \n", eyeYaw, eyePitch, eyeRoll);
+
+	//	// To output information about fingerID
+	//	/*for(Leap::FingerList::const_iterator fl = fingers.begin(); fl != fingers.end(); fl++)
+	//	std::cout << "Finger ID: " << (*fl).id() << std::endl;*/	
+	//}
+	//printCount++;
 
 
     /////////////////////////////////////////////////////////////////////
@@ -1662,7 +1771,10 @@ void updateGraphics(void)
     /////////////////////////////////////////////////////////////////////
 
     // render world
+
+	//BEGIN_TIMING(renderView,100);
     camera->renderView(windowW, windowH);
+	//END_TIMING(renderView,100);
 
     // swap buffers
     glutSwapBuffers();
@@ -2236,6 +2348,7 @@ void checkGrip(void) {
 
 void zoom(float deltaOffset) {
 	oculusOffset = oculusOffset + deltaOffset;
+	rotNum = 0;
 } 
 
 //------------------------------------------------------------------------------
@@ -2263,6 +2376,17 @@ void runSerialComm(void) {
 			
 			if(mode==1) {
 				modeName = "Master clutch";
+				printf("Clutch \n");
+				cPhantomDeviceWithClutch *hDevice = (cPhantomDeviceWithClutch *)hapticDevice.get();
+				hDevice->clutchPressed();
+				
+			} else if(mode==0) {
+				printf("Clutch released \n");
+				designModeOn = true;
+				modeName = "Design Mode";
+				cPhantomDeviceWithClutch *hDevice = (cPhantomDeviceWithClutch *)hapticDevice.get();
+				hDevice->releaseClutch();
+				
 			} else if(mode==2) {
 				if(!cameraModeOn) {
 					cameraModeOn = true; 
@@ -2307,17 +2431,21 @@ void runSerialComm(void) {
 				alphaLabel->setEnabled(false);
 			} else if(mode==5) {
 				if(!rotateModeOn) {
-					modeName = "Orient";
+					commandName = "";
+					modeName = "Design Mode 2";
 					rotateModeOn = true;
 					designModeOn = false;
 					cameraModeOn = false;
 					simulationModeOn = false;
 					warningLabel->setEnabled(false);
+					//setShowMaterialLabels();
 				} else {
+					commandName = "";
 					rotateModeOn = false;
 					designModeOn = true;
 					modeName = "Design Mode";
 					alphaLabel->setEnabled(false);
+					setShowMaterialLabels();
 				}
 			} else if(mode==6) {
 				if(!simulationModeOn) {
@@ -2380,13 +2508,16 @@ void collectData(void) {
 		currentData.Ls0 = set.m_tubes[0].Ls;
 		currentData.Ls1 = set.m_tubes[1].Ls;
 		currentData.Ls2 = set.m_tubes[2].Ls;
+		currentData.materialNum0 = set.m_tubes[0].materialNum;
+		currentData.materialNum1 = set.m_tubes[1].materialNum;
+		currentData.materialNum2 = set.m_tubes[2].materialNum;
 
 
 		//// Add data from current time step to vector of all data
 		data.push_back(currentData);
 
 		// Delay loop
-		Sleep(10);			// collect data at 100Hz
+		Sleep(20);			// collect data at 100Hz
 	}
 }
 
@@ -2400,10 +2531,18 @@ void updateHaptics(void)
 	int waitCount = 0;
 	bool increasePointNum = false;
 	float origContactVecMag = 0.01;
+	float x = 0;
+	cVector3d forceDir = cVector3d(0,0,0);
 
     // simulation in now running
     simulationRunning  = true;
     simulationFinished = false;
+	
+	// ***** testing ******
+	cVector3d devicePos;
+	cVector3d devicePosCamFrame;
+	cTransform deviceTransform;
+	cTransform cameraTransform;
 
     // main haptic simulation loop
     while(simulationRunning)
@@ -2421,6 +2560,10 @@ void updateHaptics(void)
         // UPDATE 3D CURSOR MODEL
         /////////////////////////////////////////////////////////////////////
 		cursor->setLocalPos(tool->getDeviceLocalPos());
+
+		//testing!!
+		cursor->setLocalRot(tool->getDeviceLocalRot());
+
 		cVector3d f = tool->m_lastComputedGlobalForce;
 		float fMag = sqrt(f(0)*f(0) + f(1)*f(1) + f(2)*f(2));
 		
@@ -2435,8 +2578,35 @@ void updateHaptics(void)
 
 		//--------------------------- Initializing design ------------------------------
 		//------------ button0 (place points) button1 (calc init design) ---------------
+		//------------------------------------------------------------------------------
 		if (designModeOn && !CTRInitialized && !readyToDrawInitCTR) {
 			hapticsOn = false;							// turn off haptics so that intial design can be done in place (within the anatomy)
+
+
+			if(pointNum==0) {
+				// Testing to see how to set initial tangent vector
+				/*cursor->setEnabled(true);
+				cursor->setFrameSize(0.1);
+				cursor->setShowFrame(true);*/
+				tanLine->m_pointB.set(0,0,-0.08);
+				/*tanLine->m_pointB.set(0.08,0,0);*/												// set endpoint of line along local x-axis
+
+				cTransform cursorToWorldTrans = cursor->getGlobalTransform();				// Transformation from cursor frame to world frame
+				cVector3d localEndPoint = tanLine->m_pointB;								// endpoint of line in cursor frame				
+				cursorToWorldTrans.mulr(localEndPoint,globalTanVec);						// Transform local tan vector to world coord
+
+				cVector3d globalStartPoint = cursor->getGlobalPos();
+				globalTanLine->m_pointA.set(globalStartPoint(0),globalStartPoint(1),globalStartPoint(2));			// set start start point of tan vec in world coord
+				globalTanLine->m_pointB.set(globalTanVec(0),globalTanVec(1),globalTanVec(2));						// set end point of tan vec in world coord	
+				globalTanLine->setEnabled(true);
+
+				v2_temp = globalTanVec - globalStartPoint;
+				//v2_temp = globalStartPoint - globalTanVec;
+				//printf("v_init: %f \t %f \t %f \n", v2_init(0), v2_init(1), v2_init(2));
+			}
+			//------------------------------------------------------------------------------
+			//------------------------- PLACE INITIAL POINTS -------------------------------
+			//------------------------------------------------------------------------------
 			if(button0==1) {
 				increasePointNum = true;
 				//cVector3d translateVec = tool->getDeviceGlobalPos() - pointSphere[pointNum]->getGlobalPos();
@@ -2469,10 +2639,23 @@ void updateHaptics(void)
 				testSphere->setEnabled(true);*/
 				
 
-				cVector3d translateVec = cursor->getGlobalPos() - pointSphere[pointNum]->getGlobalPos();
-				pointSphere[pointNum]->translate(translateVec);
+				cVector3d desPosLocal;
+				cVector3d desPos = tool->getDeviceGlobalPos();
+				cTransform originSphereToWorldTrans = originSphere->getGlobalTransform();
+				originSphereToWorldTrans.invert();
+				originSphereToWorldTrans.mulr(desPos,desPosLocal);
+				pointSphere[pointNum]->setLocalPos(desPosLocal);
+
+				//cVector3d translateVec = cursor->getGlobalPos() - pointSphere[pointNum]->getGlobalPos();
+				//pointSphere[pointNum]->translate(translateVec);
 				pointSphere[pointNum]->setEnabled(true);
 
+				if(pointNum==0) {
+					v2_init = v2_temp;
+				}
+			//------------------------------------------------------------------------------
+			//-------------------------- CALCULATE INIT CTR --------------------------------
+			//------------------------------------------------------------------------------
 			} else if(button1==1) {
 
 				vector<cVector3d> *circParam;
@@ -2480,8 +2663,10 @@ void updateHaptics(void)
 				for(int i=0; i<pointNum; i++) {
 					circParam->push_back(pointSphere[i]->getLocalPos());
 				}
-				circParam->push_back(cVector3d(0,0,-1));			// v		*************** WHAT SHOULD I ACTUALLY USE FOR V??? *******************
+				//circParam->push_back(cVector3d(0,0,-1));			// v		*************** WHAT SHOULD I ACTUALLY USE FOR V??? *******************
+				circParam->push_back(v2_init);								// trying to use user defined tangent vector
 				computeTubeParam(set, circParam);
+
 				readyToDrawInitCTR = true;
 
 				circParam->clear();			//try this????
@@ -2489,11 +2674,11 @@ void updateHaptics(void)
 				increasePointNum = false;
 				pointNum = pointNum + 1;
 			} else if(readyToDrawInitCTR) {
-
+				
 			}
 
 			
-			
+		//------------------------------------------------------------------------------	
 		//-------------------- In Camera Mode and Button0 Pressed ----------------------
 		//-------------------------------- Rotate View ---------------------------------
 		} else if ((button0==1) && (cameraModeOn)) {	
@@ -2548,6 +2733,7 @@ void updateHaptics(void)
 				if(tool->isInContact(rotateSphere)) {
 					if(theta>0.001) {
 						originSphere->rotateAboutGlobalAxisRad(normVec(0),normVec(1),normVec(2),theta);				// Rotate model based on normal vector and angle
+						rotNum = 0;
 					}
 
 					// Set current contact point and vector to the last ones
@@ -2562,7 +2748,37 @@ void updateHaptics(void)
 					tool->setShowEnabled(true);
 				}
 				
-			}
+			} 
+		//------------------------------------------------------------------------------	
+		//-------------------- In Camera Mode and Button1 Pressed ----------------------
+		//------------------------------ Default views ---------------------------------
+		} else if ((button1==1) && (cameraModeOn)) {
+			if(!rotating) {
+				rotating = true;
+				cMatrix3d currentRot = originSphere->getLocalRot();
+				// Determine how to rotate view
+				if(!currentRot.equals(lastRot)) {
+					if(currentRot.equals(defaultRotation) || rotNum!=0) {
+						rotNum = rotNum + 1;
+						if(rotNum<5) {
+							originSphere->rotateAboutGlobalAxisDeg(0,-1,0,90); 
+						} else if(rotNum<7) {
+							originSphere->rotateAboutGlobalAxisDeg(1,0,0,90);
+						} else {
+							originSphere->rotateAboutGlobalAxisDeg(1,0,0,90);
+							rotNum = 0;
+						}
+					} else {
+						showDefaultView(defaultRotation, defaultOculusOffset);
+						rotNum = 0;
+					}
+				}
+				lastRot = currentRot;
+			} 
+		} else if((button1==0) && (cameraModeOn) && rotating) {			// for debouncing!
+			rotating = false;
+
+		//------------------------------------------------------------------------------
 		//-------------------- In Design Mode and Button0 Pressed ----------------------
 		//------------------------- Translate insertion point --------------------------
         } else if((button0==1) && (designModeOn) && CTRInitialized) {											// If in design mode and button0 is pressed AND CTR has been initialized
@@ -2592,8 +2808,19 @@ void updateHaptics(void)
 				printf("\n");*/
 
 				hapticsOn = false;
+
+				
 				cVector3d translateVec = tool->getDeviceGlobalPos() - tubeStartSphere->getGlobalPos();
-				tubeStartSphere->translate(translateVec);
+				//tubeStartSphere->translate(translateVec);			// can put this back in if things stop working...
+
+				// **** testing to see if it fixes problem with translation not working after camera mode default views *****
+				cVector3d desPosLocal;
+				cVector3d desPos = tool->getDeviceGlobalPos();
+				cTransform originSphereToWorldTrans = originSphere->getGlobalTransform();
+				originSphereToWorldTrans.invert();
+				originSphereToWorldTrans.mulr(desPos,desPosLocal);
+				tubeStartSphere->setLocalPos(desPosLocal);
+				
 
 				//tool->rotateAboutGlobalAxisRad(-normVec(0),-normVec(1),-normVec(2),theta);
 				//updateInsertionPoint(set, tool->getDeviceGlobalPos()(0), tool->getDeviceGlobalPos()(1) , tool->getDeviceGlobalPos()(2) + 0.2);
@@ -2603,66 +2830,89 @@ void updateHaptics(void)
 				//hapticsOn = false;
 				commandName = "Translate insertion point";
 				waitCount = 0;
-			//------------------------- Change tube curvature --------------------------
+			//------------------------------------------------------------------------------
+			//------------------------- Change tube curvature ------------------------------
+			//------------------ Button 0 and in contact with lines ------------------------
 			} else {																							// If in contact with lines to adjust curvature
 				for(int k=nTubes-1; k>=0; k--) {
 					if((tool->isInContact(centerLine[k])) && (!lineGripped[k])) {
+						kappaChange = true;
 						cursor->setEnabled(true);
 						cursor->setMaterial(tubeColor[k]);
 						tool->setShowEnabled(false);
 						lineGripped[k] = true;
+
 					} else if (lineGripped[k]) {
-						// Define tip and base of line to be changed
-						cVector3d tipPoint = centerLine[k]->m_pointA;
-						cVector3d basePoint = centerLine[k]->m_pointB;
+						// Define tip and base of line to be changed (in LOCAL coord)
+						cVector3d tipPoint = centerLine[k]->m_pointA;			// endpoint of line in cursor frame
+						cVector3d basePoint = centerLine[k]->m_pointB;			// base of line in cursor frame
+						cVector3d globalTipPoint;
+						cVector3d globalBasePoint;
+
+						// Calculate tip and base pos in GLOBAL coord
+						cTransform tubeStartSphereToWorldTrans = tubeStartSphere->getGlobalTransform();		// Transform from tubeStartSphere to world frame
+						tubeStartSphereToWorldTrans.mulr(tipPoint,globalTipPoint);							// global pos of tip of line
+						tubeStartSphereToWorldTrans.mulr(basePoint,globalBasePoint);						// global pos of base of line
 						
 						// Calculate normalized vector in direction of line
-						cVector3d lineVec = cSub(tipPoint,basePoint);
+						cVector3d lineVec = cSub(globalTipPoint,globalBasePoint);
 						cVector3d unitVec = cNormalize(lineVec);
 
-						// Calculate tool position vector from base point
-						cVector3d toolPos = cVector3d(tool->getDeviceGlobalPos()(0), tool->getDeviceGlobalPos()(1) + 0.1, tool->getDeviceGlobalPos()(2) + 0.2);
+						// Calculate new point for tip of line in GLOBAL coord
+						cVector3d toolPos = tool->getDeviceGlobalPos();
+						cVector3d toolVec = cSub(toolPos,globalBasePoint);				// Calculate tool position vector from base point
+						float deltaH = cDot(toolVec,unitVec);							// Length of new tip point from base point
+						cVector3d newPoint = globalBasePoint + (deltaH*unitVec);		
+						
 
-						//cVector3d toolPos = tool->getDeviceGlobalPos() - tubeStartSphere->getGlobalPos();
-						cVector3d toolVec = cSub(toolPos,basePoint);
-						////**** debugging *****
-						//posSphere->setLocalPos(toolPos);
-						//posSphere->setEnabled(true);
-						//testSphere->setLocalPos(basePoint);
-						//testSphere->setEnabled(true);
+						//**** debugging *****
+						/*posSphere->translate(newPoint-posSphere->getGlobalPos());
+						posSphere->setEnabled(true);
+						testSphere->translate(globalBasePoint - testSphere->getGlobalPos());
+						testSphere->setEnabled(true);*/
 
+						// Calculate new point for tip of line in LOCAL coord
+						cVector3d localNewPoint;
+						tubeStartSphereToWorldTrans.invert();
+						tubeStartSphereToWorldTrans.mulr(newPoint,localNewPoint);
 
-
-						// Calculate new tip point
-						double deltaH = cDot(toolVec,unitVec);
-						cVector3d newPoint = basePoint + (deltaH*unitVec);
+						// Compute desired force to apply to tool to keep it along line (and make sure it is in CAMERA LOCAL COORD)
+						cVector3d tempForceDir = cSub(newPoint,toolPos);
+						tempForceDir = 40*tempForceDir;
+						cTransform camToWorldTrans = camera->getGlobalTransform();
+						camToWorldTrans.invert();
+						camToWorldTrans.mulr(tempForceDir,forceDir);
 
 						// Set tip point to new tip point
-						centerLine[k]->m_pointA.set(newPoint(0),newPoint(1),newPoint(2));
+						centerLine[k]->m_pointA.set(localNewPoint(0),localNewPoint(1),localNewPoint(2));
+
+
 
 						// Compute change in radius of curvature
-						a3 = newPoint;
-						a1 = cVector3d(set.positionStored.x[tubeStartInd[k]],											
-									   set.positionStored.y[tubeStartInd[k]], 
-									   set.positionStored.z[tubeStartInd[k]]);
+						//a3 = newPoint;
+						a3 = localNewPoint;
+						a1 = cVector3d(set.positionStored.x[tubeStartIndReduced[k]],											
+									   set.positionStored.y[tubeStartIndReduced[k]], 
+									   set.positionStored.z[tubeStartIndReduced[k]]);
 						if(k>0) {
-							a2 = cVector3d(set.positionStored.x[tubeStartInd[k-1]-1],											
-									   set.positionStored.y[tubeStartInd[k-1]-1], 
-									   set.positionStored.z[tubeStartInd[k-1]-1]);
+							a2 = cVector3d(set.positionStored.x[tubeStartIndReduced[k-1]-1],											
+									   set.positionStored.y[tubeStartIndReduced[k-1]-1], 
+									   set.positionStored.z[tubeStartIndReduced[k-1]-1]);
 						} else {
 							a2 = cVector3d(set.positionStored.x[set.positionStored.x.size()-1],											
 									   set.positionStored.y[set.positionStored.y.size()-1], 
 									   set.positionStored.z[set.positionStored.z.size()-1]);
 						}
-						a4 = cVector3d(set.positionStored.x[tubeMidInd[k]],											
-									   set.positionStored.y[tubeMidInd[k]], 
-									   set.positionStored.z[tubeMidInd[k]]);
+						a4 = cVector3d(set.positionStored.x[tubeMidIndReduced[k]],											
+									   set.positionStored.y[tubeMidIndReduced[k]], 
+									   set.positionStored.z[tubeMidIndReduced[k]]);
 
 						// Set command label
 						commandName = "Change curvature";
 					}
 				}
 			}
+		//------------------------------------------------------------------------------
 		//-------------------- In Design Mode and Button1 Pressed ----------------------
 		//------------------------- Change CTR orientation -----------------------------
 		} else if((button1==1) && (designModeOn) && CTRInitialized) {
@@ -2670,135 +2920,359 @@ void updateHaptics(void)
 				cursor->setEnabled(true);
 				cursor->m_material->setRedFireBrick();
 				tool->setShowEnabled(false);
-				//hapticsOn = false;
 				lastContactPoint = tool->getInteractionPoint(0)->getGlobalPosProxy();
 				lastContactVec = lastContactPoint - (tubeStartSphere->getGlobalPos());
 				gripped = true;
-			} else if(gripped) {
+
+				// testing for rotating about vector from tip to base by using pen rotation only
+				deviceRot = tool->getDeviceGlobalRot();
+				cVector3d axis; 
+				deviceRot.toAxisAngle(axis, lastAngle);
+
+			} else if(gripped) {  // rotate about vector from tip to base by using pen rotation only
+
+				cVector3d contactPoint = tool->getDeviceGlobalPos();
+				cVector3d contactVec = contactPoint - (tubeStartSphere->getGlobalPos());
+
+				// ****** Calculate force to apply to make tool stay at tubeStartSphere position ******
+				kappaChange = true;
+				cVector3d tempForceDir = -40*contactVec;
+				cTransform camToWorldTrans = camera->getGlobalTransform();
+				camToWorldTrans.invert();
+				camToWorldTrans.mulr(tempForceDir,forceDir);
+				// ************************************************************************************
+
+				//lastContactVec.crossr(contactVec,normVec);														// Calculate the normal to current contact vector and last contact vector
+				//float contactVecMag = sqrt(contactVec(0)*contactVec(0) + contactVec(1)*contactVec(1) + contactVec(2)*contactVec(2));
+				//float lastContactVecMag = sqrt(lastContactVec(0)*lastContactVec(0) + lastContactVec(1)*lastContactVec(1) + lastContactVec(2)*lastContactVec(2));
+				//theta = acos((lastContactVec.dot(contactVec))/(contactVecMag*lastContactVecMag));				// Calculate the angle between current and last contact vectors
+				//
+				//if(theta>0.001) {
+				//	tubeStartSphere->rotateAboutGlobalAxisRad(normVec(0),normVec(1),normVec(2),theta);			// Rotate CTR based on normal vector and angle
+				//}
+
+				//// Set current contact point and vector to the last ones
+				//lastContactPoint = contactPoint;
+				//lastContactVec = contactVec;
+
+				//// Set command label
+				//commandName = "Rotate CTR";
+
+				deviceRot = tool->getDeviceGlobalRot();
+				cVector3d axis; 
+				deviceRot.toAxisAngle(axis, angle);
+				angleChange = lastAngle - angle;
+				printf("delta angle: %f \n",angleChange);
+
+				cVector3d rotAxis = cSub(distalSphere->getGlobalPos(),tubeStartSphere->getGlobalPos());
+
+
+				cMatrix3d originSphereToWorldRot = originSphere->getGlobalRot();
+				cVector3d newRotAxis;
+				originSphereToWorldRot.invert();
+				originSphereToWorldRot.mulr(rotAxis,newRotAxis);
+
+				tubeStartSphere->rotateAboutGlobalAxisDeg(newRotAxis(0),newRotAxis(1),newRotAxis(2),-0.5*angleChange);
+				//tubeStartSphere->rotateAboutGlobalAxisDeg(rotAxis(0),rotAxis(1),rotAxis(2),-0.5*angleChange);
+				//lastAngle = angle;
+
+
+			} else if ((distalSphere->m_interactionInside) && !distalGripped) {
+				cursor->setEnabled(true);
+				cursor->m_material->setRedFireBrick();
+				tool->setShowEnabled(false);
+				//lastContactPoint = tool->getInteractionPoint(0)->getGlobalPosProxy();
+				lastContactPoint = tool->getDeviceGlobalPos();
+				lastContactVec = lastContactPoint - (tubeStartSphere->getGlobalPos());
+				distalGripped = true;
+
+				/*pA = cSub(tubeStartSphere->getGlobalPos(),distalSphere->getGlobalPos());
+				pA = cNormalize(pA);*/
+
+				hapticsOn = false;
+
+			} else if(distalGripped) {
 				cVector3d contactPoint = tool->getDeviceGlobalPos();
 				cVector3d contactVec = contactPoint - (tubeStartSphere->getGlobalPos());
 				lastContactVec.crossr(contactVec,normVec);														// Calculate the normal to current contact vector and last contact vector
 				float contactVecMag = sqrt(contactVec(0)*contactVec(0) + contactVec(1)*contactVec(1) + contactVec(2)*contactVec(2));
 				float lastContactVecMag = sqrt(lastContactVec(0)*lastContactVec(0) + lastContactVec(1)*lastContactVec(1) + lastContactVec(2)*lastContactVec(2));
 				theta = acos((lastContactVec.dot(contactVec))/(contactVecMag*lastContactVecMag));				// Calculate the angle between current and last contact vectors
-				
+
+				// For debugging
+				/*originSphere->setFrameSize(0.1);
+				originSphere->setShowFrame(true);
+				originSphere->setEnabled(true);
+				tubeStartSphere->setFrameSize(0.1);
+				tubeStartSphere->setShowFrame(true);
+				tubeStartSphere->setEnabled(true);
+				world->setFrameSize(0.1);
+				world->setShowFrame(true);*/
+
+				// Change rotation axis to be in orignSphere coord frame
+				cVector3d normVecLocal;
+				cMatrix3d originSphereToWorldRot = originSphere->getGlobalRot();
+				cVector3d newNormVec;
+				originSphereToWorldRot.invert();
+				originSphereToWorldRot.mulr(normVec,newNormVec);
+
+
 				if(theta>0.001) {
-					tubeStartSphere->rotateAboutGlobalAxisRad(normVec(0),normVec(1),normVec(2),theta);			// Rotate CTR based on normal vector and angle
+					tubeStartSphere->rotateAboutGlobalAxisRad(newNormVec(0),newNormVec(1),newNormVec(2),theta);
+					//tubeStartSphere->rotateAboutGlobalAxisRad(normVec(0),normVec(1),normVec(2),theta);				// Rotate model based on normal vector and angle
+					rotNum = 0;
 				}
 
 				// Set current contact point and vector to the last ones
 				lastContactPoint = contactPoint;
 				lastContactVec = contactVec;
 
-				// Set command label
-				commandName = "Rotate CTR";
-			//------------------------- Increase tube length ---------------------------
-			} else if(increaseLength){																			// Change length of tubes
-				increaseLength = false;
-				decreaseLength = false;
-				for(int ind=0; ind<set.sStored.size(); ind++) {
-					if(tool->isInContact(tube.tubeSphere[ind])) {
-						commandName = "Increase Length";
-						printf("increasing length \n");
-					
-						if(ind>tubeStartInd[0]) {					// for innermost tube
-							cursor->setEnabled(true);
-							cursor->setMaterial(tubeColor[0]);
-							tool->setShowEnabled(false);
-							updateTubeLength(set, 0, 0.002, 0.002);
-							break;
-						} else {									// for all other tubes
-							for(int j=nTubes-1; j>0; j--) {
-								if((ind>tubeStartInd[j]) && (ind<tubeStartInd[j-1])) {
-									cursor->setEnabled(true);
-									cursor->setMaterial(tubeColor[j]);
-									tool->setShowEnabled(false);
-									updateTubeLength(set, j, 0.002, 0.002);
-								}
-							} 
-							break;
-						}
-					}
-				}
+				// for debugging
+				/*debugLine->m_pointA.set(tubeStartSphere->getLocalPos()(0),tubeStartSphere->getLocalPos()(1),tubeStartSphere->getLocalPos()(2));
+				cVector3d tipPos;
+				cTransform originSphereToWorldTrans = originSphere->getGlobalTransform();
+				originSphereToWorldTrans.invert();
+				originSphereToWorldTrans.mulr(contactPoint,tipPos);
+				debugLine->m_pointB.set(tipPos(0),tipPos(1),tipPos(2));*/
 
-				//for(int k=nTubes-1; k>=0; k--) {
-				//	if(lengthSphere[k]->m_interactionInside) {
-				//		cVector3d prevPoint = cVector3d(set.positionStored.x[lengthSphereInd[k]-1],set.positionStored.y[lengthSphereInd[k]-1],set.positionStored.z[lengthSphereInd[k]-1]);
-				//		cVector3d dirCTR = cSub(lengthSphere[k]->getLocalPos(),prevPoint);
-				//		dirCTR = cNormalize(dirCTR);
-				//		// get force applied along direction of CTR
-				//		double forceX = tool->m_lastComputedGlobalForce.x();
-				//		double forceY = tool->m_lastComputedGlobalForce.y();
-				//		double forceZ = tool->m_lastComputedGlobalForce.z();
-				//		double force = cDot((cVector3d(forceX,forceY,forceZ)),dirCTR);
+				// ****** Calculate force to apply to make tool stay at distal tip position ******
+				cVector3d desPos = contactPoint - (tube.tubeSphere[tubeEndIndReduced[0]]->getGlobalPos());
+				kappaChange = true;
+				cVector3d tempForceDir = -30*desPos;
+				cTransform camToWorldTrans = camera->getGlobalTransform();
+				camToWorldTrans.invert();
+				camToWorldTrans.mulr(tempForceDir,forceDir);
+
+				//cVector3d desPosLocal;
+				//cVector3d desPos = tool->getDeviceGlobalPos();
+				//cTransform tubeStartSphereToWorldTrans = tubeStartSphere->getGlobalTransform();
+				//tubeStartSphereToWorldTrans.invert();
+				//tubeStartSphereToWorldTrans.mulr(desPos,desPosLocal);
+				//distalSphere->setLocalPos(desPosLocal);
+
+				//// for debugging
+				//tubeStartSphere->setFrameSize(0.1);
+				//tubeStartSphere->setShowFrame(true);
+				//debugLine->m_pointA.set(tubeStartSphere->getLocalPos()(0),tubeStartSphere->getLocalPos()(1),tubeStartSphere->getLocalPos()(2));
+				//cVector3d tipPos;
+				//cTransform originSphereToWorldTrans = originSphere->getGlobalTransform();
+				//originSphereToWorldTrans.invert();
+				//originSphereToWorldTrans.mulr(desPos,tipPos);
+				//debugLine->m_pointB.set(tipPos(0),tipPos(1),tipPos(2));
+				//debugLine->setEnabled(true);
+				//tubeStartSphere->setEnabled(true);
 
 
-				//		const double K = 0.5;
-				//		//double pos = (lengthSphere[k]->getLocalPos()) - K*timeInterval*force;
-				//		double shift = K*force;				// Try direct conversion to shift in position along backbone of CTR
-				//		lengthSphere[k]->setLocalPos(set.positionStored.x[lengthSphereInd[k]+shift],set.positionStored.y[lengthSphereInd[k]+shift],set.positionStored.z[lengthSphereInd[k]+shift]);
+				//// make sure pA and pB are different enough
+				//pB = cSub(tubeStartSphere->getGlobalPos(),distalSphere->getGlobalPos());
+				//pB = cNormalize(pB);
+				////double dif = (cSub(pA,pB)).length();
+				//double sinTheta = cCross(pA,pB).length();
 
-
-				//		
-				//	}
+				////if(dif>0.03) {
+				//if(sinTheta!=0) {
+				//	cMatrix3d A_R_B = calculateRotMat(pA,pB);
+				//	cMatrix3d W_R_B = cMul(tubeStartSphere->getGlobalRot(),A_R_B);
+				//	tubeStartSphere->setLocalRot(W_R_B);
+				//	pA = pB;
 				//}
-			//------------------------- Decrease tube length ---------------------------
-			} else if(decreaseLength) {
-				decreaseLength = false;
-				increaseLength = false;
-				for(int ind=0; ind<set.sStored.size(); ind++) {
-					if(tool->isInContact(tube.tubeSphere[ind])) {
-						commandName = "Decrease Length";
-						printf("decreasing length \n");
-						if(ind>tubeStartInd[0]) {					// for innermost tube
-							cursor->setEnabled(true);
-							cursor->setMaterial(tubeColor[0]);
-							tool->setShowEnabled(false);
-							updateTubeLength(set, 0, -0.002,- 0.002);
-							break;
-						} else {									// for all other tubes
-							for(int j=nTubes-1; j>0; j--) {
-								if((ind>tubeStartInd[j]) && (ind<tubeStartInd[j-1])) {
-									cursor->setEnabled(true);
-									cursor->setMaterial(tubeColor[j]);
-									tool->setShowEnabled(false);
-									updateTubeLength(set, j, -0.002, -0.002);
-								}
-							} 
-							break;
+
+				//cVector3d contactPoint = tool->getDeviceGlobalPos();
+				//cVector3d contactVec = contactPoint - (tube.tubeSphere[tubeEndIndReduced[0]]->getGlobalPos());
+				//// ****** Calculate force to apply to make tool stay at distal tip position ******
+				//kappaChange = true;
+				//cVector3d tempForceDir = -10*contactVec;
+				//cTransform camToWorldTrans = camera->getGlobalTransform();
+				//camToWorldTrans.invert();
+				//camToWorldTrans.mulr(tempForceDir,forceDir);
+
+			
+			} else { 
+				for(int k=nTubes-1; k>=0; k--) {
+					if((tool->isInContact(centerLine[k])) && (!lineGrippedForLengthChange[k])) {		// **** testing new way to change tube length
+						kappaChange = true;
+						cursor->setEnabled(true);
+						cursor->setMaterial(tubeColor[k]);
+						tool->setShowEnabled(false);
+						lineGrippedForLengthChange[k] = true;
+					
+					} else if (lineGrippedForLengthChange[k]) {
+						// determine force to apply to keep cursor at center of curve
+						cVector3d toolPos = tool->getDeviceGlobalPos();										// tool pos in global coord
+
+						// try forcing cursor to end point of tube
+						//cVector3d posDes = tube.tubeSphere[tubeEndInd[k]]->getGlobalPos();
+						cVector3d posDes = tube.tubeSphere[tubeEndIndReduced[k]]->getGlobalPos();
+						cVector3d tempForceDir = cSub(posDes,toolPos);
+						double tempForce = tempForceDir.length();
+						
+						//printf("dist: %f \n", tempForce);
+						if(tempForce < 0.006) {
+							lengthChange = true;
 						}
+						
+						tempForceDir = 50*tempForceDir;
+						cTransform camToWorldTrans = camera->getGlobalTransform();
+						camToWorldTrans.invert();
+						camToWorldTrans.mulr(tempForceDir,forceDir);
+
+
+						if(lengthChange) {
+							// determine how to change color of spheres
+							double toolDistToMid = (cSub(tube.tubeSphere[tubeMidIndReduced[k]]->getGlobalPos(),toolPos)).length();
+							double endDistToMid = (cSub(tube.tubeSphere[tubeMidIndReduced[k]]->getGlobalPos(),posDes)).length();
+							double approxNumSpheres = tempForce/hsize/5;
+							int spheresToChange;
+							
+							if(toolDistToMid<endDistToMid) { // shortening tube length
+								sphereInd = tubeEndIndReduced[k] - approxNumSpheres;			// to keep track of index of endpoint
+								deltaLength = -approxNumSpheres*5*hsize;
+								for(int i=tubeStartIndReduced[k]; i<sphereInd; i++) {
+									if(k!=0) {	// case for all tubes except innermost tube
+										tube.tubeSphere[i]->setMaterial(tubeColor[k]);				// spheres from start of tube to endInd
+									} else {	// case for innermost tube
+										tube.tubeSphere[i]->setShowEnabled(true);					// need to ERASE spheres from endInd to the end of the tube
+									}
+								}
+								for(int i=sphereInd; i<tubeEndIndReduced[k]+1; i++) {
+									if(k!=0) {	// case for all tubes except innermost tube
+										tube.tubeSphere[i]->setMaterial(tubeColor[k-1]);		// spheres from endInd to end of tube, turn next tube color
+									} else {	// case for innermost tube
+										//tube.tubeSphere[i]->setEnabled(false);					// need to ERASE spheres from endInd to the end of the tube
+										tube.tubeSphere[i]->setShowEnabled(false);
+									}
+								}
+								
+							} else {			// lengthening tube 
+								sphereInd = tubeEndIndReduced[k] + approxNumSpheres;			// to keep track of index of endpoint
+								deltaLength = approxNumSpheres*5*hsize;
+								if(k!=0) {		// case for all tubes except innermost tube
+									for(int i=tubeStartIndReduced[k]; i<sphereInd; i++) {
+										tube.tubeSphere[i]->setMaterial(tubeColor[k]);			// spheres from start of tube to endInd
+									}			
+									if(sphereInd < lastSphereInd) {
+										for(int i=sphereInd; i<lastSphereInd; i++) {
+											tube.tubeSphere[i]->setMaterial(tubeColor[k-1]);	// spheres from endInd to lastEndInd, turn back to original color
+										}
+									}
+								} else {		// case for innermost tube
+									// calculate approx tangent to curve at that point
+									//cVector3d approxTan = cSub(tube.tubeSphere[tubeEndIndReduced[k]-10]->getLocalPos(),tube.tubeSphere[tubeEndIndReduced[k]]->getLocalPos());
+									//approxTan = cNormalize(approxTan);
+									//float dist = hsize*5;
+									//int j=0;
+
+									//for(int i=tubeEndIndReduced[k]+1; i<sphereInd; i++) {		// spheres beyond end of tube
+									//	j=j+1;
+									//	tube.tubeSphere[i] = new cShapeSphere((set.m_tubes[k].OD)/2);			// create sphere with radius equal to radius of tube k
+									//	tubeStartSphere->addChild(tube.tubeSphere[i]);							// add new sphere as child to tube start sphere
+									//	cVector3d newPos = cAdd(tube.tubeSphere[tubeEndIndReduced[k]]->getLocalPos(), dist*j*approxTan);
+									//	tube.tubeSphere[i]->setLocalPos(newPos(0),newPos(1),newPos(2));
+									//	tube.tubeSphere[i]->setMaterial(tubeColor[k]);
+									//	tube.tubeSphere[i]->setEnabled(true);
+									//}
+
+								}
+
+								lastSphereInd = sphereInd;
+							}
+						}
+
+						// determine how much to increase/decrease length
+
+
 					}
 				}
+
 			}
+
+		//------------------------------------------------------------------------------
 		//-------------------- In Rotate Mode and Button1 Pressed ----------------------
 		//------------------------- Change alpha of tubes ------------------------------
 		} else if((button1==1) && rotateModeOn) {				
+			if(!readyToChangeMaterial && !changeMaterial) {
+				for(int ind=0; ind<set.sStored.size(); ind++) {
+					if((tool->isInContact(tube.tubeSphere[ind])) && (!grippedToRot)) {
+						grippedToRot = true;	
+						grippedToRotInd = ind;
 
+						deviceRot = tool->getDeviceGlobalRot();
+						cVector3d axis; 
+						deviceRot.toAxisAngle(axis, lastAngle);
+
+						cursor->setEnabled(true);
+						cursor->m_material->setRedFireBrick();
+						tool->setShowEnabled(false);
+
+						break;
+					} else if (grippedToRot) {
+						deviceRot = tool->getDeviceGlobalRot();
+						cVector3d axis; 
+						deviceRot.toAxisAngle(axis, angle);
+						angleChange = lastAngle - angle;
+						//printf("delta angle: %f \n",angleChange);
+						alphaValue = std::to_string(angleChange);
+						alphaLabel->setEnabled(true);
+						warningLabel->setEnabled(false);
+					}
+				}
+			} else {
+				changeMaterial = true;
+				readyToChangeMaterial = false;
+				printf("updating kinematics based on material change \n");
+			}
+		}  else if((button0==1) && rotateModeOn) {
 			for(int ind=0; ind<set.sStored.size(); ind++) {
-				if((tool->isInContact(tube.tubeSphere[ind])) && (!grippedToRot)) {
-					grippedToRot = true;	
-					grippedToRotInd = ind;
+				if((tool->isInContact(tube.tubeSphere[ind])) && (!readyToChangeMaterial)) {
+					readyToChangeMaterial = true;	
 
-					deviceRot = tool->getDeviceGlobalRot();
-					cVector3d axis; 
-					deviceRot.toAxisAngle(axis, lastAngle);
+					// Determine tube number
+					if(ind>tubeStartIndReduced[0]) {					// for innermost tube
+						readyToChangeMaterialInd = 0;		
+					} else {									// for all other tubes
+						for(int j=nTubes-1; j>0; j--) {
+							if((ind>tubeStartIndReduced[j]) && (ind<tubeStartIndReduced[j-1])) {
+								readyToChangeMaterialInd = j;
+							}
+						} 
+					} 
 
 					cursor->setEnabled(true);
-					cursor->m_material->setRedFireBrick();
+					cursor->setMaterial(tubeColor[readyToChangeMaterialInd]);;
 					tool->setShowEnabled(false);
 
+					// start debounce timer
+					debounceClock.reset();
+					debounceClock.start();
+
+					updateTubeMaterial(set,readyToChangeMaterialInd,set.m_tubes[readyToChangeMaterialInd].materialNum);
+					setShowMaterialLabels();
 					break;
-				} else if (grippedToRot) {
-					deviceRot = tool->getDeviceGlobalRot();
-					cVector3d axis; 
-					deviceRot.toAxisAngle(axis, angle);
-					angleChange = lastAngle - angle;
-					//printf("delta angle: %f \n",angleChange);
-					alphaValue = std::to_string(angleChange);
-					alphaLabel->setEnabled(true);
-					warningLabel->setEnabled(false);
+				} else if(readyToChangeMaterial) {
+					double currTime = debounceClock.getCurrentTimeSeconds();
+					if(currTime>DEBOUNCE_TIME) {
+						int currMaterialNum = set.m_tubes[readyToChangeMaterialInd].materialNum;
+						int nextMaterialNum;
+						if(currMaterialNum==2) {
+							nextMaterialNum = 0;
+						} else {
+							nextMaterialNum = currMaterialNum + 1;
+						}
+						set.m_tubes[readyToChangeMaterialInd].materialNum = nextMaterialNum;
+						updateTubeMaterial(set,readyToChangeMaterialInd,nextMaterialNum);
+
+						cursor->setEnabled(true);
+						cursor->setMaterial(tubeColor[readyToChangeMaterialInd]);;
+						tool->setShowEnabled(false);
+						
+						// start debounce timer
+						debounceClock.reset();
+						debounceClock.start();
+					}
 				}
 			}
+
+		//------------------------------------------------------------------------------
 		//------------------ In Simulation Mode and Button1 Pressed --------------------
 		//-------------------------- Simulate CTR moving -------------------------------			
 		} else if((button0==1) && simulationModeOn) {	
@@ -2812,6 +3286,7 @@ void updateHaptics(void)
 			tool->setShowEnabled(true);
 
 			gripped = false;
+			distalGripped = false;
 			//hapticsOn = true;
 
 			if(readyToDrawInitCTR) {
@@ -2830,21 +3305,39 @@ void updateHaptics(void)
 					updateTubeCurvature(set, k, a1, a2, a3, a4);				// If line was being changed but is now released, compute kinematics
 				}
 				lineGripped[k] = false;
+				kappaChange = false;
 			}
+
+			for(int k=nTubes-1; k>=0; k--) {
+				if(lineGrippedForLengthChange[k]) {
+					printf("delta Lc: %f \n", deltaLength);
+					updateTubeLength(set, k, 0, deltaLength);				// If line was being changed but is now released, compute kinematics
+				}
+				lineGrippedForLengthChange[k] = false;
+
+				//***** testing ****
+				kappaChange = false;
+				lengthChange = false;
+			}
+
 			
 			if(grippedToRot) {
-				if(grippedToRotInd>tubeStartInd[0]) {					// for innermost tube
+				if(grippedToRotInd>tubeStartIndReduced[0]) {					// for innermost tube
 					updateTubeAlpha(set, 0, angleChange);
 					//printf("tube to change: %i \n", 0);		
 				} else {									// for all other tubes
 					for(int j=nTubes-1; j>0; j--) {
-						if((grippedToRotInd>tubeStartInd[j]) && (grippedToRotInd<tubeStartInd[j-1])) {
+						if((grippedToRotInd>tubeStartIndReduced[j]) && (grippedToRotInd<tubeStartIndReduced[j-1])) {
 							updateTubeAlpha(set, j, angleChange);
 							//printf("tube to change: %i \n", j);		
 						}
 					} 
 				}
 				grippedToRot = false;
+			}
+
+			if(changeMaterial) {
+				updateTubeMaterialAndConfig(set);
 			}
         }
 
@@ -2855,8 +3348,16 @@ void updateHaptics(void)
         /////////////////////////////////////////////////////////////////////
 		world->computeGlobalPositions(true);
 		tool->updatePose();
-		tool->computeInteractionForces();
-		if(hapticsOn) {
+		if(!simulationModeOn) {
+			tool->computeInteractionForces();
+		}
+
+		if(kappaChange) {
+			hapticDevice->setForce(forceDir);
+			//lengthChange = true;
+		}
+
+		if(hapticsOn && !kappaChange) {
 			tool->applyForces();
 		}
 
@@ -2925,10 +3426,14 @@ void drawTubes(ConcentricTubeSet set) {
 	// Clear anything from before
 	tubeStartSphere->deleteAllChildren();
 
+	//// for debugging
+	//tubeStartSphere->setEnabled(true);
+
 	// Draw spheres that make up each tube of CTR
 	cVector3d backbonePoints;																				// vector of points along backbone
-	cVector3d sEqualsZero;
+	cVector3d sEqualsZero = tubeStartSphere->getLocalPos();
 	int ind = 0;
+	int indReduced = 0;
 	float lastLength = 0;
 	int lastInd = 0;
 	bool* lineDrawn;
@@ -2938,20 +3443,41 @@ void drawTubes(ConcentricTubeSet set) {
 	}
 	cGenericEffect* lineEffect[6];
 	double s;
-
-
-	for(int k=nTubes-1; k>=0; k--) {																		// Start from OUTERMOST tube (tube #n) and going til INNERMOST tube (tube #0)	
+	
+	// Do initial calculations to determine 3 necessary spheres to render
+	for(int k=nTubes-1; k>=0; k--) {
+		// Start from OUTERMOST tube (tube #n) and going til INNERMOST tube (tube #0)	
 		float length = set.m_tubes[k].Ls + set.m_tubes[k].Lc + set.m_tubes[k].Beta;
 		
 		// Store index of start of each tube
 		tubeStartInd[k] = ind;
+		tubeEndInd[k] = tubeStartInd[k] + floor((length-lastLength)/hsize);
+		tubeMidInd[k] = tubeStartInd[k] + floor((length-lastLength)/hsize/2);
+		
+		lastLength = length;
+		ind = tubeEndInd[k] + 1;
+	}
+	
+
+	ind = 0;				// set back to 0 for start of determining which spheres to draw
+	for(int k=nTubes-1; k>=0; k--) {	
+		
+		int testInd = 0;
+
+		// Start from OUTERMOST tube (tube #n) and going til INNERMOST tube (tube #0)	
+		float length = set.m_tubes[k].Ls + set.m_tubes[k].Lc + set.m_tubes[k].Beta;
 
 		s = set.sStored[ind];
 		while(s<length)
 		{
-			if(s>=0) {
-				tube.tubeSphere[ind] = new cShapeSphere((set.m_tubes[k].OD)/2);									// create sphere with radius equal to radius of tube i
-				tubeStartSphere->addChild(tube.tubeSphere[ind]);												// add new sphere as child to tube start sphere
+			testInd = testInd + 1;				// only want to draw every 10th sphere (or start,middle,end)
+			if((s>=0) && ((ind==tubeStartInd[k])||(ind==tubeMidInd[k])||(ind==tubeEndInd[k])||(testInd==5))){
+
+				// Reset to zero each time to make sure we only draw every 5th sphere
+				testInd = 0;
+
+				tube.tubeSphere[indReduced] = new cShapeSphere((set.m_tubes[k].OD)/2);									// create sphere with radius equal to radius of tube i
+				tubeStartSphere->addChild(tube.tubeSphere[indReduced]);												// add new sphere as child to tube start sphere
 				backbonePoints = cVector3d(set.positionStored.x[ind],											// set backbone points based on stored xyz position computed from kinematics
 										   set.positionStored.y[ind], 
 										   set.positionStored.z[ind]);		
@@ -2965,19 +3491,18 @@ void drawTubes(ConcentricTubeSet set) {
 					backbonePoints = backbonePoints-sEqualsZero;
 				}
 
-				tube.tubeSphere[ind]->setLocalPos(backbonePoints);												// set position of sphere based on points along backbone
-				tube.tubeSphere[ind]->setMaterial(tubeColor[k]);
+				tube.tubeSphere[indReduced]->setLocalPos(backbonePoints);												// set position of sphere based on points along backbone
+				tube.tubeSphere[indReduced]->setMaterial(tubeColor[k]);
 
 				// Add effect to CTR
 				cGenericEffect* effectCTR;																		// temp variable
-				effectCTR = new cEffectMagnet(tube.tubeSphere[ind]);											// create a haptic effect
-				tube.tubeSphere[ind]->addEffect(effectCTR);														// add effect to object
-				tube.tubeSphere[ind]->m_material->setMagnetMaxDistance(0.01);
-				tube.tubeSphere[ind]->m_material->setStiffness(0.2*maxStiffness);								// set parameters related to effect
-				tube.tubeSphere[ind]->setHapticEnabled(true);
-				tube.tubeSphere[ind]->setEnabled(true);
+				effectCTR = new cEffectMagnet(tube.tubeSphere[indReduced]);											// create a haptic effect
+				tube.tubeSphere[indReduced]->addEffect(effectCTR);														// add effect to object
+				tube.tubeSphere[indReduced]->m_material->setMagnetMaxDistance(0.01);
+				tube.tubeSphere[indReduced]->m_material->setStiffness(0.2*maxStiffness);								// set parameters related to effect
+				tube.tubeSphere[indReduced]->setHapticEnabled(true);
+				tube.tubeSphere[indReduced]->setEnabled(true);
 
-				//if((ind==0) /*&& (designModeOn)*/) {
 				if((ind==0) && (!simulationModeOn)) {
 					proximalSphere = new cShapeSphere(0.01);
 					tubeStartSphere->addChild(proximalSphere);
@@ -2989,18 +3514,26 @@ void drawTubes(ConcentricTubeSet set) {
 					proximalSphere->m_material->setWhiteHoneydew();						 // set material color
 					newEffect = new cEffectSurface(proximalSphere);						 // create a haptic effect
 					proximalSphere->addEffect(newEffect);								 // add effect to object
-					proximalSphere->m_material->setStiffness(0.5 * maxStiffness);		 // set parameters related to effect
+					proximalSphere->m_material->setStiffness(0.8 * maxStiffness);		 // set parameters related to effect
 					proximalSphere->setHapticEnabled(true);
 					proximalSphere->setEnabled(true);
 				}
-				//if((!lineDrawn[k]) /*&& (designModeOn)*/ && (!lineGripped[k])) {
+
 				if((!lineDrawn[k]) && (!simulationModeOn) && (!lineGripped[k])) {
-					if((ind - lastInd) == (floor((length-lastLength)/0.0005/2))) {
-						float height = ((set.m_tubes[k].OD)/2)+0.001;
-						centerLine[k] = new cShapeLine(backbonePoints-cVector3d(height,height,height),backbonePoints);
+					//if((ind - lastInd) == (floor((length-lastLength)/0.0001/2))) {
+					if(ind == tubeMidInd[k]) {
+						float height = ((set.m_tubes[k].OD)/2)+0.008;
+
+						cVector3d tubeStartPoint = cVector3d(set.positionStored.x[tubeStartInd[k]],set.positionStored.y[tubeStartInd[k]],set.positionStored.z[tubeStartInd[k]]);
+						cVector3d tubeEndPoint = cVector3d(set.positionStored.x[tubeEndInd[k]],set.positionStored.y[tubeEndInd[k]],set.positionStored.z[tubeEndInd[k]]);
+						cVector3d lineEndPoint = computeEndPoint(tubeStartPoint, tubeEndPoint, backbonePoints, height);
+						centerLine[k] = new cShapeLine(lineEndPoint,backbonePoints);
+
+
+						//centerLine[k] = new cShapeLine(backbonePoints-cVector3d(height,height,height),backbonePoints);
 						tubeStartSphere->addChild(centerLine[k]);
 						centerLine[k]->m_material->setWhiteHoneydew();
-						centerLine[k]->setLineWidth(5);
+						centerLine[k]->setLineWidth(30);
 
 						lineEffect[k] = new cEffectMagnet(centerLine[k]);
 						centerLine[k]->addEffect(lineEffect[k]);
@@ -3011,9 +3544,38 @@ void drawTubes(ConcentricTubeSet set) {
 						lastLength = length;
 						lastInd = ind + (ind-lastInd);
 						centerLine[k]->setEnabled(true);
-						tubeMidInd[k] = ind;
+						//tubeMidInd[k] = ind;
 					}
 				}
+
+				// try adding distal sphere as well
+				if((ind==tubeEndInd[0]) && !simulationModeOn) {
+					distalSphere = new cShapeSphere(0.006);
+					tubeStartSphere->addChild(distalSphere);
+					distalSphere->setLocalPos(backbonePoints);
+					distalSphere->setTransparencyLevel(0.9);
+
+					// Add effect to proximal end of tube
+					cGenericEffect* newEffect;										// temp variable
+					distalSphere->m_material->setGraySilver();						// set material color
+					newEffect = new cEffectSurface(distalSphere);					// create a haptic effect
+					distalSphere->addEffect(newEffect);								// add effect to object
+					distalSphere->m_material->setStiffness(0.8 * maxStiffness);		// set parameters related to effect
+					distalSphere->setHapticEnabled(true);
+					distalSphere->setEnabled(true);
+
+				}
+
+				// keep track of new indices based on only drawing every 5
+				if(ind==tubeStartInd[k]) {
+					tubeStartIndReduced[k] = indReduced;
+				} else if(ind==tubeMidInd[k]) {
+					tubeMidIndReduced[k] = indReduced;
+				} else if(ind==tubeEndInd[k]) {
+					tubeEndIndReduced[k] = indReduced;
+				}
+				// use to keep track of indices for tubeSphere
+				indReduced = indReduced + 1;
 
 
 			}
@@ -3022,6 +3584,7 @@ void drawTubes(ConcentricTubeSet set) {
 				centerLine[k]->setEnabled(false);
 			}*/
 			ind = ind + 1;
+
 			if(ind<(set.sStored.size())) {
 				s = set.sStored[ind];
 			} else {
@@ -3069,6 +3632,104 @@ void drawTubes(ConcentricTubeSet set) {
 	//}
 }
 
+void drawSimulation(ConcentricTubeSet set) {
+	setInvalidated = false;
+
+	// Clear anything from before
+	tubeStartSphere->deleteAllChildren();
+
+	// Draw spheres that make up each tube of CTR
+	cVector3d backbonePoints;																				// vector of points along backbone
+	cVector3d sEqualsZero = tubeStartSphere->getLocalPos();
+	int ind = 0;
+	int indReduced = 0;
+	float lastLength = 0;
+	int lastInd = 0;
+	double s;
+	
+	// Do initial calculations to determine 3 necessary spheres to render
+	for(int k=nTubes-1; k>=0; k--) {
+		// Start from OUTERMOST tube (tube #n) and going til INNERMOST tube (tube #0)	
+		float length = set.m_tubes[k].Ls + set.m_tubes[k].Lc + set.m_tubes[k].Beta;
+		
+		// Store index of start of each tube
+		tubeStartInd[k] = ind;
+		tubeEndInd[k] = tubeStartInd[k] + floor((length-lastLength)/hsize);
+		tubeMidInd[k] = tubeStartInd[k] + floor((length-lastLength)/hsize/2);
+		
+		lastLength = length;
+		ind = tubeEndInd[k] + 1;
+	}
+	
+
+	ind = 0;				// set back to 0 for start of determining which spheres to draw
+	for(int k=nTubes-1; k>=0; k--) {	
+		
+		int testInd = 0;
+
+		// Start from OUTERMOST tube (tube #n) and going til INNERMOST tube (tube #0)	
+		float length = set.m_tubes[k].Ls + set.m_tubes[k].Lc + set.m_tubes[k].Beta;
+
+		s = set.sStored[ind];
+		while(s<length)
+		{
+			testInd = testInd + 1;				// only want to draw every 10th sphere (or start,middle,end)
+			if(s>=0) {
+				// Reset to zero each time to make sure we only draw every 5th sphere
+				testInd = 0;
+
+				tube.tubeSphere[indReduced] = new cShapeSphere((set.m_tubes[k].OD)/2);									// create sphere with radius equal to radius of tube i
+				tubeStartSphere->addChild(tube.tubeSphere[indReduced]);												// add new sphere as child to tube start sphere
+				backbonePoints = cVector3d(set.positionStored.x[ind],											// set backbone points based on stored xyz position computed from kinematics
+										   set.positionStored.y[ind], 
+										   set.positionStored.z[ind]);		
+				// If in simulation mode, want to draw from s=0 as the start sphere
+				if(s==0) {
+					sEqualsZero = cVector3d(set.positionStored.x[ind],											// Save position at s=0
+										   set.positionStored.y[ind], 
+										   set.positionStored.z[ind]);
+				}
+				if(simulationModeOn) {
+					backbonePoints = backbonePoints-sEqualsZero;
+				}
+
+				tube.tubeSphere[indReduced]->setLocalPos(backbonePoints);												// set position of sphere based on points along backbone
+				tube.tubeSphere[indReduced]->setMaterial(tubeColor[k]);
+
+				// Add effect to CTR
+				cGenericEffect* effectCTR;																		// temp variable
+				effectCTR = new cEffectMagnet(tube.tubeSphere[indReduced]);											// create a haptic effect
+				tube.tubeSphere[indReduced]->addEffect(effectCTR);														// add effect to object
+				tube.tubeSphere[indReduced]->m_material->setMagnetMaxDistance(0.01);
+				tube.tubeSphere[indReduced]->m_material->setStiffness(0.2*maxStiffness);								// set parameters related to effect
+				tube.tubeSphere[indReduced]->setHapticEnabled(true);
+				tube.tubeSphere[indReduced]->setEnabled(true);
+
+				// keep track of new indices based on only drawing every 5
+				if(ind==tubeStartInd[k]) {
+					tubeStartIndReduced[k] = indReduced;
+				} else if(ind==tubeMidInd[k]) {
+					tubeMidInd[k] = indReduced;
+				} else if(ind==tubeEndInd[k]) {
+					tubeEndIndReduced[k] = indReduced;
+				}
+				// use to keep track of indices for tubeSphere
+				indReduced = indReduced + 1;
+			}
+			
+			ind = ind + 1;
+
+			if(ind<(set.sStored.size())) {
+				s = set.sStored[ind];
+			} else {
+				s = length;
+			}
+			
+		}
+
+		
+	}
+}
 //------------------------------------------------------------------------------
 // Update tube location or orientation
 //------------------------------------------------------------------------------
@@ -3082,6 +3743,27 @@ void updateOrientation(ConcentricTubeSet set, cVector3d &axisToRotateAbout) {
 
 void updateInitOrientation(ConcentricTubeSet set, cVector3d &axisToRotateAbout, double angle) {
 	tubeStartSphere->rotateAboutGlobalAxisRad(axisToRotateAbout, angle);
+}
+
+cMatrix3d calculateRotMat(cVector3d pA, cVector3d pB) {
+	// note that pA and pB must be unit vectors
+	double cosTheta = cDot(pA,pB);
+	double sinTheta = cCross(pA,pB).length();
+	cMatrix3d G = cMatrix3d(cosTheta,-sinTheta,0,sinTheta,cosTheta,0,0,0,1);
+	cVector3d u = pA;
+	cVector3d v = (pB-cosTheta*pA)/((pB-cosTheta*pA).length());
+	cVector3d w = cCross(pB,pA);
+	cMatrix3d F;
+	cMatrix3d Finv;
+	F.setCol0(u);
+	F.setCol1(v);
+	F.setCol2(w);
+	Finv = F;
+	F.invert();
+	cMatrix3d rot = cMul(cMul(Finv,G),F);
+	rot.invert();
+
+	return rot;		// rotation from B to A (A_R_B)
 }
 
 //------------------------------------------------------------------------------
@@ -3124,7 +3806,9 @@ void updateTubeLength(ConcentricTubeSet &set, int tubeIndex, float deltaLs, floa
 	}
 
 	waitLabel->setEnabled(true);
-	kinematicsThread->start(runKinematics, CTHREAD_PRIORITY_HAPTICS);
+	//*** testing calling function directly ***
+	runKinematics();
+	//kinematicsThread->start(runKinematics, CTHREAD_PRIORITY_HAPTICS);
 	waitLabel->setEnabled(false);
 	commandName = "";
 	//drawTubes(set);
@@ -3189,7 +3873,7 @@ void updateTubeCurvature(ConcentricTubeSet &set, int tubeIndex, cVector3d a1, cV
 	waitLabel->setEnabled(true);
 	kinematicsThread->start(runKinematics, CTHREAD_PRIORITY_HAPTICS);
 	waitLabel->setEnabled(false);
-	//drawTubes(set);
+
 	if(set.isValidSet) {
 		drawTubes(set);
 	} else {
@@ -3206,6 +3890,42 @@ void updateTubeMaterial(ConcentricTubeSet &set, int tubeIndex, int materialNumbe
 	maxStrain = maxStrainVec[materialNumber];
 
 	materialName = materialNameVec[materialNumber];
+
+	// Update display
+	for(int i=0; i<3; i++) {
+		if(i==materialNumber){
+			materialOptionDisplay[materialNumber]->setValue(40.0);
+			materialOptionDisplay[materialNumber+3]->setValue(39.0);
+		} else {
+			materialOptionDisplay[i]->setValue(0.0);
+			materialOptionDisplay[i+3]->setValue(0.0);
+		}
+	}
+}
+
+void updateTubeMaterialAndConfig(ConcentricTubeSet &set) {
+	// make sure curvatures are achievable with given materials?
+	for(int i=0; i<nTubes; i++) {
+		float rMin = (set.m_tubes[i].OD)/(2*maxStrain);
+		float r = 1/set.m_tubes[i].kappa;
+		if(abs(r)<rMin) {
+			if(r>0) {
+				set.m_tubes[i].kappa = 1/rMin;
+			} else {
+				set.m_tubes[i].kappa = -1/rMin;
+			}
+			warningName = "Tube " + to_string(static_cast<long double>(i)) + " exceeded max strain";
+			warningLabel->setEnabled(true);
+		}
+	}
+
+	kinematicsThread->start(runKinematics, CTHREAD_PRIORITY_HAPTICS);
+	if(set.isValidSet) {
+		drawTubes(set);
+	} else {
+		printf("could not solve \n");
+	}
+	changeMaterial = false;
 }
 
 void updateTubeAlpha(ConcentricTubeSet &set, int tubeIndex, double angleChange) {
@@ -3368,18 +4088,18 @@ void calculateConfig(ConcentricTubeSet &set) {
 	// Calculate total tube lengths to determine initial Beta values and set alpha values to final alpha values as calculated (should remain fixed!!)
 	for(int k=nTubes-1; k>=0; k--) {
 		float sigma = set.m_tubes[k].Lc + set.m_tubes[k].Ls;
-		float initBetaVal = -sigma + 0.001 + (0.001*(nTubes-k-1));
+		//float initBetaVal = -sigma + 0.001 + (0.001*(nTubes-k-1));
+		float initBetaVal = -sigma + 0.00001 + (0.000001*(nTubes-k-1));
 		std::vector<float> rowBeta = simulatedBeta[k];
 		rowBeta.push_back(initBetaVal);					//Only manipulate one row
 		simulatedBeta[k] = rowBeta;						//Store row back into matrix
-
 		std::vector<float> rowAlpha = simulatedAlpha[k];
 		rowAlpha.push_back(set.m_tubes[k].alpha);		//Only manipulate one row
 		simulatedAlpha[k] = rowAlpha;					//Store row back into matrix
 	}
 
 	// Create set of Beta
-	int divisions = 3;		//10;
+	int divisions = 7;  //3;		//10;
 	int iter = 0;
 	float newBetaVal;
 	for(int i=0; i<nTubes; i++) {
@@ -3387,6 +4107,9 @@ void calculateConfig(ConcentricTubeSet &set) {
 		for(int j=0; j<divisions; j++) {
 			for(int k=nTubes-1; k>=0; k--) {
 				std::vector<float> rowBeta = simulatedBeta[k];
+				/*if((i==0) && (k==(nTubes-1)) && (j>=(divisions-1))) {
+					newBetaVal = rowBeta[rowBeta.size()-1];
+				} else if((i!=0) && (k>=(nTubes-iter))) {*/
 				if((i!=0) && (k>=(nTubes-iter))) {
 					newBetaVal = rowBeta[rowBeta.size()-1];			
 				} else {
@@ -3403,7 +4126,7 @@ void calculateConfig(ConcentricTubeSet &set) {
 			}
 		}
 		iter = iter + 1;
-	}
+}
 
 	// Calculate configuration for each alpha/Beta pair and store final configuration info.
 	std::vector<float> rowB = simulatedBeta[0];
@@ -3415,13 +4138,15 @@ void calculateConfig(ConcentricTubeSet &set) {
 	tool->setForcesOFF();											// turn forces off during computations
 	
 	ConcentricTubeSet currentSet;
-	//currentSet = set;
 	numValidSets = 0;
 	for(int i=0; i<numSets; i++) {
 		currentSet = set;
 		for(int k=nTubes-1; k>=0; k--) {
 			currentSet.m_tubes[k].Beta = simulatedBeta[k][i];
 			currentSet.m_tubes[k].alpha = simulatedAlpha[k][0];			// alpha remains fixed throughout
+			// **** for debugging ***
+			float checkingLength = set.m_tubes[k].Lc + set.m_tubes[k].Ls + simulatedBeta[k][i];
+			printf("length: %f \n",checkingLength);
 		}
 
 		waitLabel->setEnabled(true);
@@ -3468,29 +4193,117 @@ void simulate(void) {
 	//	 tool->start();
 	//	 readyToDraw = false;
 	//}
-
+	int button1;
 
 	if((simulatedSets != NULL) && (currSetDrawing < numValidSets)) {
-		drawTubes(simulatedSets[currSetDrawing]);
-		/*if(currIter>10) {
+		if(!pauseSimPressed) {
+			drawSimulation(simulatedSets[currSetDrawing]);
 			currSetDrawing++;
-			currIter = 0;
 		}
-		currIter++;*/
-		currSetDrawing++;
+
+		button1 = tool->getUserSwitch(1); // check to see if user tried to pause simulation
+		if(button1==1) {
+			pauseSimPressed = !pauseSimPressed;
+		}
 	} else if((simulatedSets != NULL) && (currSetDrawing == numValidSets)) {
 		 simulationRunning = true;
 		 hapticsThread->start(updateHaptics, CTHREAD_PRIORITY_HAPTICS);
 		 tool->start();
 		 readyToDraw = false;
-	}
-	
+	} 
 }
 
 
 //------------------------------------------------------------------------------
 // Calculate initial design
 //------------------------------------------------------------------------------
+
+
+struct curveFuncToSolve
+{
+	vector<cVector3d> *param;
+
+	int operator()(const Eigen::VectorXf &xvec, Eigen::VectorXf &fvec) const 
+	{ 
+		// convert Eigen::VectorXf to gsl_vector
+		gsl_vector *x_gsl = gsl_vector_alloc (4);
+		gsl_vector *f_gsl = gsl_vector_alloc (4);
+		for(int i=0; i<4; i++) {
+			gsl_vector_set (x_gsl, i, xvec(i));
+			gsl_vector_set (f_gsl, i, fvec(i));
+		}
+		curveFunc(x_gsl, (void *)this->param, f_gsl);
+		for(int i=0; i<4; i++) {
+			// convert gslvector f into fvec (eigen vector)
+			fvec(i) = gsl_vector_get (f_gsl,i);
+		}
+		return 0;
+	}
+
+#define EPS 1e-5
+	int df(const Eigen::VectorXf &xvec, Eigen::MatrixXf &fjac) const
+    {
+		Eigen::VectorXf epsilon1(4);
+		Eigen::VectorXf epsilon2(4);
+		Eigen::VectorXf epsilon3(4);
+		Eigen::VectorXf epsilon4(4);
+		for(int i=0; i<4; i++) {
+			epsilon1(i) = 0;
+			epsilon2(i) = 0;
+			epsilon3(i) = 0;
+			epsilon4(i) = 0;
+		}
+
+		epsilon1(0) = EPS;
+		epsilon2(1) = EPS;
+		epsilon3(2) = EPS;
+		epsilon4(3) = EPS;
+
+
+	    // cx
+		Eigen::VectorXf fvecxa(4);
+		operator()(xvec + epsilon1, fvecxa);
+		Eigen::VectorXf fvecxb(4);
+		operator()(xvec - epsilon1, fvecxb);
+		Eigen::VectorXf fvecx = (fvecxa-fvecxb)/(2*EPS);
+
+		// cy
+		Eigen::VectorXf fvecya(4);
+		operator()(xvec + epsilon2, fvecya);
+		Eigen::VectorXf fvecyb(4);
+		operator()(xvec - epsilon2, fvecyb);
+		Eigen::VectorXf fvecy = (fvecya-fvecyb)/(2*EPS);
+
+		// cz
+		Eigen::VectorXf fvecza(4);
+		operator()(xvec + epsilon3, fvecza);
+		Eigen::VectorXf fveczb(4);
+		operator()(xvec - epsilon3, fveczb);
+		Eigen::VectorXf fvecz = (fvecza-fveczb)/(2*EPS);
+
+		// r
+		Eigen::VectorXf fvecra(4);
+		operator()(xvec + epsilon4, fvecra);
+		Eigen::VectorXf fvecrb(4);
+		operator()(xvec - epsilon4, fvecrb);
+		Eigen::VectorXf fvecr = (fvecra-fvecrb)/(2*EPS);
+
+		// form jacobian
+		fjac.col(0) = fvecx;
+		fjac.col(1) = fvecy;
+		fjac.col(2) = fvecz;
+		fjac.col(3) = fvecr;
+
+
+		return 0;
+	}
+
+	int inputs() const { return 4; }	// inputs is the dimension of x.
+	int values() const { return 4; } // "values" is the number of f_i and 
+
+};
+
+
 void computeTubeParam(ConcentricTubeSet &set, void *circParam) {
 	vector<cVector3d> param = *(vector<cVector3d> *)circParam;				// recast
 	// Input parameters in circParam: a1,a2,...an,v
@@ -3535,59 +4348,100 @@ void computeTubeParam(ConcentricTubeSet &set, void *circParam) {
 		cValues[i] = cSolved;
 		// set the newly computed v to be used in next calculation
 		v = v2;
+
 	}
 
-	// --------- testinggggggg ----------------
-	// find normal to each circle
-	for(int i=0; i<numCurves; i++) {					
-		normals[i] = cCross(points[i]-cValues[i],points[i+1]-cValues[i]);		
+	// add code to determine best path and ensure continuous path
+	for(int i=0; i<numCurves; i++) {
+		// Add curves and save values to new struct
+		ConcentricTubeSet::curve newCurve;
+		newCurve.r = rValues[i];
+		newCurve.c = cValues[i];
+
+		// Compute bx, by, normal
+		cVector3d bx_temp = points[i]-cValues[i];
+		bx_temp = cNormalize(bx_temp);
+		cVector3d tempNorm = cCross(points[i]-cValues[i],points[i+1]-cValues[i]);
+		tempNorm = cNormalize(tempNorm);
+		cVector3d by_temp = cCross(points[i]-cValues[i], tempNorm);
+		by_temp = cNormalize(by_temp);
+		// Save bx, by, normal
+		newCurve.bx = bx_temp;
+		newCurve.by = by_temp;
+		newCurve.normVec = tempNorm;
+
+		// Compute theta and curved length
+		double numerator = cDot(points[i] - cValues[i], points[i+1] - cValues[i]);
+		double denominator = (cDistance(points[i],cValues[i]))*(cDistance(points[i+1],cValues[i]));
+		newCurve.theta = acos(numerator/denominator);
+		newCurve.lc = rValues[i]*(newCurve.theta);
+
+		// Set tube curved length to length of curve
+		set.m_tubes[numCurves-i-1].Lc = newCurve.lc;
+
+		//initialize dir to be 2 (meaningless)
+		newCurve.dir = 2;
+
+		set.addCurve(newCurve);
+
 	}
-	// ------testing trying to find initial orientation----------
-	//initAngle = atan2(cDot(normals[0],cVector3d(1,0,0)),cDot(normals[0],cVector3d(0,1,0)));
-	//printf("initAngle: %f \n", initAngle);
-	savedAlphas[nTubes-1] = 0;
+
+	computeOptPath(set, circParam);
+
+
 
 	// find alpha AND curvature for each tube
 	set.m_tubes[nTubes-1].alpha = 0;											// assume the outermost tube is at alpha=0
-	cVector3d w0 = cCross(param[param.size()-1],normals[0]);					// create right hand coord sys with initial tangent vector and normal to first curve
+	cVector3d w0 = cCross(param[param.size()-1],set.m_curves[0].normVec);		// create right hand coord sys with initial tangent vector and normal to first curve
 	set.m_tubes[0].kappa = 1/rValues[numCurves-1];								// curvature of innermost tube depends on radius of FINAL circle
-	for(int i=1; i<numCurves; i++) {
-		// alpha calculations
-		int tubeInd = numCurves-i-1;											// tube number and curve number start from opposite ends
-		double y = cDot(normals[i],w0);											// project normal from each curve onto the plane made by normal0 and w0
-		double x = cDot(normals[i],normals[0]);
-		set.m_tubes[tubeInd].alpha = atan2(y,x);
-		//set.m_tubes[tubeInd].alpha = 0; //********testing only!!!!!!*******************
-		//-----testing------
-		savedAlphas[tubeInd] = atan2(y,x);
-
-		// curvature calculations
-		float kappaEq = 1/rValues[numCurves-tubeInd-1];
-		float innerI = (PI/64)*(pow(set.m_tubes[i-1].OD,4));
-		float outerI = (PI/64)*(pow(set.m_tubes[i].OD,4));
-		set.m_tubes[i].kappa = (kappaEq*(set.m_tubes[i-1].E * innerI + set.m_tubes[i].E * outerI) - (set.m_tubes[i-1].E * innerI * set.m_tubes[i-1].kappa))/(set.m_tubes[i].E * outerI);
-	}
 	
-	printf("kappa tube 1: %f \t, alpha tube 0: %f \n",set.m_tubes[0].kappa,set.m_tubes[0].alpha); 
-	printf("kappa tube 2: %f \t, alpha tube 1: %f \n",set.m_tubes[1].kappa,set.m_tubes[1].alpha); 
+	// curvature calculations
+	for(int i=1; i<numCurves; i++) {
+		float kappaEq = 1/rValues[numCurves-i-1];
+		/*float I1 = (M_PI/64)*((pow(set.m_tubes[i-1].OD,4))-(pow(set.m_tubes[i-1].ID,4)));
+		float I2 = (M_PI/64)*((pow(set.m_tubes[i].OD,4))-(pow(set.m_tubes[i].ID,4)));
+		set.m_tubes[i].kappa = (kappaEq*(set.m_tubes[i-1].E * I1 + set.m_tubes[i].E * I2) - (set.m_tubes[i-1].E * I1 * set.m_tubes[i-1].kappa))/(set.m_tubes[i].E * I2);
+		*/
+
+		float sumNumer1 = 0;
+		float sumNumer2 = 0;
+		for(int j=0; j<(i+1); j++) {
+			float I = (M_PI/64)*((pow(set.m_tubes[j].OD,4))-(pow(set.m_tubes[j].ID,4)));
+			sumNumer1 = sumNumer1 + kappaEq*(I*set.m_tubes[j].E);
+			if(j<i) {
+				sumNumer2 = sumNumer2 + set.m_tubes[j].kappa*set.m_tubes[j].E*I;
+			}
+		}
+		float In = (M_PI/64)*((pow(set.m_tubes[i].OD,4))-(pow(set.m_tubes[i].ID,4)));
+		set.m_tubes[i].kappa = (sumNumer1-sumNumer2)/(set.m_tubes[i].E*In);
+		/*printf("tube num: %i \n",i);
+		printf("old calc: %f \n",set.m_tubes[i].kappa);
+		printf("new calc: %f \n",testKappa);*/
+	}
 
 	for(int i=0; i<numCurves; i++) {
 		int tubeInd = numCurves-i-1;
-		cVector3d vec1 = points[i]-cValues[i];
-		cVector3d vec2 = points[i+1]-cValues[i];
-		double numerator = cDot(vec1,vec2);
-		double denominator = (vec1.length())*(vec2.length());
-		double theta = acos(numerator/denominator);
-		if(tubeInd==(nTubes-1)) {
-			set.m_tubes[tubeInd].Lc = rValues[i]*theta;
+		if(tubeInd==(nTubes-1)) {			// outermost tube only
+			set.m_tubes[tubeInd].Lc = set.m_curves[i].lc;
 		} else {
-			set.m_tubes[tubeInd].Lc = rValues[i]*theta + set.m_tubes[tubeInd+1].Lc;
+			set.m_tubes[tubeInd].Lc = set.m_curves[i].lc + set.m_tubes[tubeInd+1].Lc;		// Assuming it's possible for inner tube to have curved length of calc length plus length of previous curved lengths of outer tubes
 		}
 		set.m_tubes[tubeInd].Ls = 0.1+(0.01*(nTubes-tubeInd));
-		//set.m_tubes[tubeInd].Beta = -0.08+(0.01*tubeInd);
-
 		set.m_tubes[tubeInd].Beta = -set.m_tubes[tubeInd].Ls + 0.01;
+		//set.m_tubes[tubeInd].Beta = -0.01;
+
+		// alpha calculations
+		int curveInd = i;
+		if(curveInd!=0) {			// do for all tubes EXCEPT outermost (where alpha=0)
+			double y = cDot(set.m_curves[curveInd].normVec,w0);											// project normal from each curve onto the plane made by normal0 and w0
+			double x = cDot(set.m_curves[curveInd].normVec,set.m_curves[0].normVec);
+			set.m_tubes[tubeInd].alpha = atan2(y,x);
+		}		
 	}
+
+	printf("kappa tube 0: %f \t, alpha tube 0: %f \n",set.m_tubes[0].kappa,set.m_tubes[0].alpha); 
+	printf("kappa tube 1: %f \t, alpha tube 1: %f \n",set.m_tubes[1].kappa,set.m_tubes[1].alpha); 
+	printf("kappa tube 2: %f \t, alpha tube 2: %f \n",set.m_tubes[2].kappa,set.m_tubes[2].alpha);
 
 }
 
@@ -3613,48 +4467,73 @@ cVector3d computeCurveParam(ConcentricTubeSet &set,  cVector3d a1, cVector3d a2,
 }
 
 int findCurves(vector<cVector3d> &circParam) {
-	const gsl_multiroot_fsolver_type *T;
-	gsl_multiroot_fsolver *solver;
-	int status;
-	size_t iter = 0;	 		
-	gsl_multiroot_function f = {&curveFunc, 4, &circParam};
+	//const gsl_multiroot_fsolver_type *T;
+	//gsl_multiroot_fsolver *solver;
+	//int status;
+	//size_t iter = 0;	 		
+	//gsl_multiroot_function f = {&curveFunc, 4, &circParam};
 
 	double x_init[4] = {1,1,1,1};
-	gsl_vector *x = gsl_vector_alloc(4);
+	//gsl_vector *x = gsl_vector_alloc(4);
 
-	gsl_vector_set(x,0,x_init[0]);
-	gsl_vector_set(x,1,x_init[1]);
-	gsl_vector_set(x,2,x_init[2]);
-	gsl_vector_set(x,3,x_init[3]);
+	//gsl_vector_set(x,0,x_init[0]);
+	//gsl_vector_set(x,1,x_init[1]);
+	//gsl_vector_set(x,2,x_init[2]);
+	//gsl_vector_set(x,3,x_init[3]);
 
-	T = gsl_multiroot_fsolver_hybrids;
-	solver = gsl_multiroot_fsolver_alloc (T, 4);
-	gsl_multiroot_fsolver_set (solver, &f, x);
 
-	do
-		{
-			iter++;
-			status = gsl_multiroot_fsolver_iterate (solver);
 
-			printf("iter: %i, x: %f  %f  %f %f \n",iter, gsl_vector_get (solver->x, 0), gsl_vector_get (solver->x, 1),gsl_vector_get (solver->x, 2),gsl_vector_get (solver->x, 3));
-			printf("iter: %i, f: %f  %f  %f %f \n",iter, gsl_vector_get (solver->f, 0), gsl_vector_get (solver->f, 1),gsl_vector_get (solver->f, 2),gsl_vector_get (solver->f, 3));
+	for(int i=0; i<4; i++) {
+		circVec(i) = x_init[i];
+	}
 
-			if (status)   /* check if solver is stuck */
-				break;
 
-			status = gsl_multiroot_test_residual (solver->f, 1e-6);				//
-		}
-	while (status == GSL_CONTINUE && iter < 1000);
+	curveFuncToSolve func;
+	func.param = &circParam;
+	Eigen::LevenbergMarquardt<curveFuncToSolve, float> lm(func);
+	lm.minimize(circVec);
 
-	printf ("status = %s\n", gsl_strerror (status));
 
-	cSolved = cVector3d(gsl_vector_get (solver->x, 0), gsl_vector_get (solver->x, 1), gsl_vector_get (solver->x, 2));
-	rSolved = gsl_vector_get (solver->x, 3);
+	
 
-	gsl_multiroot_fsolver_free (solver);
-	gsl_vector_free (x);
+	printf("cx: %f \n", circVec(0));
+	printf("cy: %f \n", circVec(1));
+	printf("cz: %f \n", circVec(2));
+	printf("r: %f \n", circVec(3));
 
-	printf("cx: %f \t, cy: %f \t, cz: %f \t, r: %f \n",cSolved(0),cSolved(1),cSolved(2),rSolved);
+	cSolved = cVector3d(circVec(0), circVec(1), circVec(2));
+	rSolved = circVec(3);
+
+
+
+	//T = gsl_multiroot_fsolver_hybrids;
+	//solver = gsl_multiroot_fsolver_alloc (T, 4);
+	//gsl_multiroot_fsolver_set (solver, &f, x);
+
+	//do
+	//	{
+	//		iter++;
+	//		status = gsl_multiroot_fsolver_iterate (solver);
+
+	//		printf("iter: %i, x: %f  %f  %f %f \n",iter, gsl_vector_get (solver->x, 0), gsl_vector_get (solver->x, 1),gsl_vector_get (solver->x, 2),gsl_vector_get (solver->x, 3));
+	//		printf("iter: %i, f: %f  %f  %f %f \n",iter, gsl_vector_get (solver->f, 0), gsl_vector_get (solver->f, 1),gsl_vector_get (solver->f, 2),gsl_vector_get (solver->f, 3));
+
+	//		if (status)   /* check if solver is stuck */
+	//			break;
+
+	//		status = gsl_multiroot_test_residual (solver->f, 1e-6);				//
+	//	}
+	//while (status == GSL_CONTINUE && iter < 1000);
+
+	//printf ("status = %s\n", gsl_strerror (status));
+
+	//cSolved = cVector3d(gsl_vector_get (solver->x, 0), gsl_vector_get (solver->x, 1), gsl_vector_get (solver->x, 2));
+	//rSolved = gsl_vector_get (solver->x, 3);
+
+	/*gsl_multiroot_fsolver_free (solver);*/
+	//gsl_vector_free (x);
+
+	/*printf("cx: %f \t, cy: %f \t, cz: %f \t, r: %f \n",cSolved(0),cSolved(1),cSolved(2),rSolved);*/
 
 	return 0;
 
@@ -3689,6 +4568,128 @@ int curveFunc(const gsl_vector * x, void *circParam, gsl_vector * f) {
 	return GSL_SUCCESS;
 }
 
+cVector3d computeEndPoint(cVector3d tubeStartPoint, cVector3d tubeEndPoint, cVector3d curveMidPoint, float lineLength) {
+	cVector3d endPointVec = cSub(tubeEndPoint,tubeStartPoint);
+	double vecLength = endPointVec.length();
+	vecLength = vecLength/2;
+	endPointVec.normalize();
+	cVector3d lineMidPoint = tubeStartPoint + vecLength*endPointVec;
+	cVector3d unitVec = cSub(curveMidPoint,lineMidPoint);
+	unitVec.normalize();
+	cVector3d lineEndPoint = curveMidPoint + lineLength*unitVec;
+
+	return lineEndPoint;
+}
+
+void computeOptPath(ConcentricTubeSet &set, void *circParam) {
+	vector<cVector3d> param = *(vector<cVector3d> *)circParam;
+	int numCurves = param.size()-2;											// number of curves (number of tubes)
+	double theta0;
+	double theta1;
+	double theta2;
+	cVector3d pts0;
+	cVector3d pts1;
+	cVector3d pts2;
+	double av1;
+	double av2;
+
+	for(int i=0; i<numCurves; i++) {
+		double sum1 = 0;
+		double sum2 = 0;
+		// compute first 20 points along curve
+		for(int j=0; j<20; j++) {
+			if(i==0) {		 // if first curve
+
+				// determine direction of first curve
+				if(j==0) {
+					theta1 = -1*set.m_curves[i].theta;		// testing dir=1
+					theta2 = 0;			// testing dir=-1
+				} else {
+					theta1 = theta1 - 0.01;
+					theta2 = theta2 + 0.01;
+				}
+				pts1 = set.m_curves[i].r * cos(theta1) * set.m_curves[i].bx + sin(theta1)*set.m_curves[i].by + set.m_curves[i].c;
+				pts2 = set.m_curves[i].r * cos(theta2) * set.m_curves[i].bx + sin(theta2)*set.m_curves[i].by + set.m_curves[i].c;
+				sum1 = sum1 + cDistance(globalTanLine->m_pointB,pts1);
+				sum2 = sum2 + cDistance(globalTanLine->m_pointB,pts2);
+				/*sum1 = sum1 + cDistance(globalTanVec,pts1);
+				sum2 = sum2 + cDistance(globalTanVec,pts2);*/
+
+				printf("tan: %f \t %f \t %f \n", globalTanLine->m_pointB.get(0),globalTanLine->m_pointB.get(1),globalTanLine->m_pointB.get(2));
+				printf("pts: %f \t %f \t %f \n", pts1(0),pts1(1),pts1(2));
+				printf("pts: %f \t %f \t %f \n", pts2(0),pts2(1),pts2(2));
+
+
+				//if(set.m_curves[i].dir == 2) {		// first time computing
+				//	if(j==19) {
+				//		set.m_curves[i].dir = 1;
+				//	}
+				//} else {
+				//	
+				//	set.m_curves[i].dir = -1;
+				//}
+			} else {		// if any other curve, check for which arc to use
+				if(set.m_curves[i-1].dir == 1) {			// if direction of previous curve was 1
+					if(j==0) {  // initialize theta values
+						theta0 = -1*set.m_curves[i-1].theta;
+						theta1 = 0;
+						theta2 = 0; //2*M_PI - set.m_curves[i].theta;
+					} else {
+						theta0 = theta0 - 0.01;
+						theta1 = theta1 - 0.01;
+						theta2 = theta2 + 0.01;
+					}
+				} else if(set.m_curves[i-1].dir == -1) {	// if direction of previous curve was -1
+					if(j==0) {  // initialize theta values
+						theta0 = set.m_curves[i-1].theta;
+						theta1 = 0;
+						theta2 = 0;
+					} else {
+						theta0 = theta0 + 0.01;
+						theta1 = theta1 - 0.01;
+						theta2 = theta2 + 0.01;
+					}
+				}
+				// calculate subsequent points along previous curve and first points along both possible arcs
+				pts0 = set.m_curves[i-1].r * cos(theta0) * set.m_curves[i-1].bx + sin(theta0)*set.m_curves[i-1].by + set.m_curves[i-1].c;
+				pts1 = set.m_curves[i].r * cos(theta1) * set.m_curves[i].bx + sin(theta1)*set.m_curves[i].by + set.m_curves[i].c;
+				pts2 = set.m_curves[i].r * cos(theta2) * set.m_curves[i].bx + sin(theta2)*set.m_curves[i].by + set.m_curves[i].c;
+				sum1 = sum1 + cDistance(pts0,pts1);
+				sum2 = sum2 + cDistance(pts0,pts2);
+			}
+		}
+
+		if(i==0) {
+			if(sum1>sum2){
+				set.m_curves[i].dir = 1;
+			} else {
+				set.m_curves[i].dir = -1;
+				set.m_curves[i].theta = 2*M_PI - set.m_curves[i].theta;
+			}
+		}else {
+			av1 = sum1/20;
+			av2 = sum2/20;
+			if(av1<av2) {
+				//theta remains unchanged
+				set.m_curves[i].dir = 1;
+			} else {
+				set.m_curves[i].theta = 2*M_PI - set.m_curves[i].theta;
+				set.m_curves[i].dir = -1;
+			}
+		}
+	}
+
+	//for debugging
+	char *str1 = new char[1024];
+	sprintf(str1, "dir = [%i; %i; %i]", set.m_curves[0].dir, set.m_curves[1].dir, set.m_curves[2].dir);
+	OutputDebugString(str1);
+	delete str1;
+	char *str2 = new char[1024];
+	sprintf(str2, "theta = [%.8f; %.8f; %.8f]", set.m_curves[0].theta, set.m_curves[1].theta, set.m_curves[2].theta);
+	OutputDebugString(str2);
+	delete str2;
+}
+
 static void printMatrix(const gsl_matrix *x, const char *path)
 {
 	FILE *f = fopen(path, "w");
@@ -3716,14 +4717,31 @@ void drawInitCTR(ConcentricTubeSet &set) {
 	float insertPointY = pointSphere[0]->getLocalPos()(1); 
 	float insertPointZ = pointSphere[0]->getLocalPos()(2);
 	updateInsertionPoint(set, insertPointX, insertPointY, insertPointZ);
+
+
+	//Testing out new code for finding correct initial point:
+	//cMatrix3d newRot = tubeStartSphere->getLocalRot();
+	//pointSphere[0]->setLocalRot(newRot);
+	//float insertPointX = pointSphere[nTubes+1]->getLocalPos()(0);
+	//float insertPointY = pointSphere[nTubes+1]->getLocalPos()(1);
+	//float insertPointZ = pointSphere[nTubes+1]->getLocalPos()(2);
+	//updateInsertionPoint(set, insertPointX, insertPointY, insertPointZ);
+
+	//tubeStartSphere->setFrameSize(0.1);
+	//pointSphere[0]->setFrameSize(0.1);
+	//tubeStartSphere->setShowFrame(true);
+	//pointSphere[0]->setShowFrame(true);
+
+
+	
 	
 
-	set.m_tubes[nTubes-2].alpha = savedAlphas[nTubes-2];
-	set.m_tubes[nTubes-3].alpha = savedAlphas[nTubes-3];
+	//set.m_tubes[nTubes-2].alpha = savedAlphas[nTubes-2];
+	//set.m_tubes[nTubes-3].alpha = savedAlphas[nTubes-3];
 	runKinematics();				// call this DIRECTLY (rather than in a separate thread) to be sure values are computed before drawing
-	//drawTubes(set);
+
 	if(set.isValidSet) {
-		//drawTubes(set);
+		printf("valid set \n");
 	} else {
 		printf("could not solve \n");
 		reinitialize();
@@ -3740,15 +4758,15 @@ void drawInitCTR(ConcentricTubeSet &set) {
 	printTube(set);
 	printf("finished saving \n");
 
-	//set.m_tubes[nTubes-3].alpha = savedAlphas[nTubes-3];
-	//runKinematics();				// call this DIRECTLY (rather than in a separate thread) to be sure values are computed before drawing
-	//drawTubes(set);
-	//printf("third computation done");
 
 	if(set.isValidSet) {
 		//// Calculations for determining initial orientation
 		computeInitOrientation(set);
 		drawTubes(set);
+
+		// Set clock to measure time before erasing initial points and tangent line drawn
+		otherClock.reset();
+		otherClock.start();
 
 		// For now don't erase pointSphere[i] (initial points drawn)
 		//for(int i=0; i<(nTubes+1); i++) {
@@ -4023,15 +5041,15 @@ void printTube(ConcentricTubeSet set) {
 void setTubeParams(ConcentricTubeSet set) {
 	// Set value of alpha for each tube
 	alpha_init = new float[nTubes];
-	alpha_init[0] = M_PI/2;//-2.81074452;		//M_PI/2;
-	alpha_init[1] = -M_PI/2;//0.2627804;		//-M_PI/2;
+	alpha_init[0] = M_PI/2;//-2.81074452;		
+	alpha_init[1] = -M_PI/2;//0.2627804;		
 	alpha_init[2] = 0;
 
 	// Set value of OD for each tube
 	OD_init = new float[nTubes];
 	OD_init[0] = 0.0018;
 	OD_init[1] = 0.0025;
-	OD_init[2] = 0.0035;
+	OD_init[2] = 0.0035; //.35
 
 	// Set value of ID for each tube
 	ID_init = new float[nTubes];
@@ -4059,7 +5077,7 @@ void setTubeParams(ConcentricTubeSet set) {
 
 	// Set value of Beta for each tube
 	Beta_init = new float[nTubes];
-	Beta_init[0] = -0.12;
+	Beta_init[0] = -0.13; //-.12
 	Beta_init[1] = -0.09;//-0.11;//-0.09;
 	Beta_init[2] = -0.07;//-0.1;//-0.07;
 
@@ -4078,6 +5096,7 @@ void setTubeParams(ConcentricTubeSet set) {
 	// Material name
 	materialName = materialNameVec[0];
 	maxStrain = maxStrainVec[0];
+
 }
 
 
@@ -4091,6 +5110,37 @@ void checkIndexCollision(void) {
 	}
 }
 
+//------------------------------------------------------------------------------
+// Update view
+//------------------------------------------------------------------------------
+void showDefaultView(cMatrix3d defaultRot, float defaultOff) {
+	// Set offset to the default
+	oculusOffset = defaultOff;
+	// Set rotation of originSphere to the default
+	originSphere->setLocalRot(defaultRot);
+}
+
+void getClutchOffset() {
+	clutchOffset = tool->getDeviceGlobalPos();
+	clutchOffsetLocal = tool->getLocalPos();
+
+	//simulationRunning = false;
+}
+
+void setShowMaterialLabels() {
+	bool visible;
+	if(rotateModeOn) {
+		visible = true;
+	} else {
+		visible = false;
+	}
+	for(int i=0; i<6; i++) {
+		materialOptionDisplay[i]->setEnabled(visible);
+	}
+	for(int i=0; i<3; i++) {
+		materialOptionLabel[i]->setEnabled(visible);
+	}
+}
 //------------------------------------------------------------------------------
 // Old functions...
 //------------------------------------------------------------------------------

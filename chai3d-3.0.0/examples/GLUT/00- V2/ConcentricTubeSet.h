@@ -10,12 +10,36 @@
 #include <gsl/gsl_multifit_nlin.h>
 #include <gsl/gsl_multiroots.h>
 #include <gsl/gsl_linalg.h>
+#include <gsl/gsl_blas.h>
+
+#include "Dense"
+#include <NonLinearOptimization\LevenbergMarquardt.h>
+#include <NonLinearOptimization\lmpar.h>
+#include <NonLinearOptimization\chkder.h>
+#include <NonLinearOptimization\covar.h>
+#include <NonLinearOptimization\dogleg.h>
+#include <NonLinearOptimization\fdjac1.h>
+#include <NonLinearOptimization\HybridNonLinearSolver.h>
+#include <NonLinearOptimization\qrsolv.h>
+#include <NonLinearOptimization\r1mpyq.h>
+#include <NonLinearOptimization\r1updt.h>
+#include <NonLinearOptimization\rwupdt.h>
+
 
 
 using namespace chai3d;
 using namespace std;
 
-//void kinematics(ConcentricTubeSet &set);
+#define BEGIN_TIMING(x,y) \
+  unsigned int g_beginTick##x = GetTickCount(); static unsigned int g_n##x = 0; static unsigned int g_tot##x = 0;
+#define END_TIMING(x,y) \
+  unsigned int g_endTick##x = GetTickCount(); g_tot##x += g_endTick##x-g_beginTick##x; \
+  if(++g_n##x >= y) { \
+    printf("Timing: %s time %f ms\n", #x, (float)g_tot##x/g_n##x); \
+    g_tot##x = 0; \
+    g_n##x = 0; \
+  }
+
 
 class ConcentricTubeSet {
 
@@ -37,9 +61,23 @@ public:
 		float Beta;						// Length of straight transmission behind front plate (Beta<=0)  
 		float Lc;                       // Length of curved region of each tube
 		float Ls;                       // Total length of straight transmission
+		int   materialNum;				// Number of material of tube (0=Nitinol,1=PEBA,2=Accura)
 		//Conditions for INITIAL VALUE PROBLEM
 		float moment_guess;				// guess for moment (KtPsi') at s=0
 	};
+
+
+	struct curve {
+		double r;						// radius of curvature 
+		cVector3d c;					// center of circle
+		double theta;					// angle of curve
+		double lc;
+		cVector3d bx;					
+		cVector3d by;
+		cVector3d normVec;
+		int dir;
+	};
+
 
 	// Intervals and midpoints
 	struct intervalAndMidpoint {
@@ -111,6 +149,7 @@ public:
 
 	// Variables
 	std::vector < tube > m_tubes;		//collection of tubes
+	std::vector < curve > m_curves;		//collection of curves
 	vector <float> discontinuitiesList; // list of discontinuities in ascending order
 	cMatrix3d Rz;						// Rotation matrix
 	cMatrix3d RzPrime;					// 3x3 derivative wrt psi of rotation matrix
@@ -138,6 +177,7 @@ public:
 
 	// Functions
 	void addTube(tube t);
+	void addCurve(curve c);
 	void clear();
 	tube getTube(int i);
 	gsl_odeiv_system odeSys;

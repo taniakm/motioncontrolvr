@@ -3,11 +3,24 @@
 #include "ConcentricTubeSet.h"
 #include "SerialClass.h"
 #include "gsl/gsl_linalg.h"
+#include <WinBase.h>
+
+
 
 //------------------------------------------------------------------------------
 using namespace chai3d;
 using namespace Leap;
 using namespace std;
+
+//#define BEGIN_TIMING(x,y) \
+//  unsigned int g_beginTick##x = GetTickCount(); static unsigned int g_n##x = 0; static unsigned int g_tot##x = 0;
+//#define END_TIMING(x,y) \
+//  unsigned int g_endTick##x = GetTickCount(); g_tot##x += g_endTick##x-g_beginTick##x; \
+//  if(++g_n##x >= y) { \
+//    printf("Timing: %s time %f ms\n", #x, (float)g_tot##x/g_n##x); \
+//    g_tot##x = 0; \
+//    g_n##x = 0; \
+//  }
 
 //------------------------------------------------------------------------------
 
@@ -82,7 +95,9 @@ struct dataStruct {							// struct to store data at a given instant
 	float				Beta2;
 	float				Lc2;
 	float				Ls2;
-
+	int					materialNum0;
+	int					materialNum1;
+	int					materialNum2;
 };
 
 vector<dataStruct> data;					// variable to store data in each time step
