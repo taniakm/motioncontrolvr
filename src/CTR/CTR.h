@@ -1,7 +1,7 @@
 #include "chai3d.h"
 #include "Leap.h"
-#include "ConcentricTubeSet.h"
-#include "SerialClass.h"
+//#include "ConcentricTubeSet.h"
+//#include "SerialClass.h"
 #include "gsl/gsl_linalg.h"
 #include <WinBase.h>
 

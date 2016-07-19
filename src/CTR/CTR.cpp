@@ -9,7 +9,6 @@
 #include "Service_NetClient.h"
 #include "Service_NetSessionCommon.h"
 
-#include "chai3d.h"
 #include "OVR_CAPI.h"		// Include the OculusVR SDK
 #include "OVR_Stereo.h"
 #include "OVR_Profile.h"
@@ -18,10 +17,12 @@
 #include "Util_Render_Stereo.h"
 #include "OVR_Math.h"
 #include "CPhantomDeviceWithClutch.h"
+#include "ConcentricTubeSet.h"
 
-#include "Leap.h"
-#include "LeapListener.h"
+//#include "Leap.h"
+//#include "LeapListener.h"
 #include "CTR.h"
+#include "SerialClass.h"
 #include <math.h> 
 #include <iostream>
 #include <fstream>

@@ -16,3 +16,10 @@
 *.lastbuildstate
 *.unsuccessfulbuild
 *.vcxproj.user
+*.lib
+*.rc
+*.res
+*.manifest
+*.idb
+*.exe
+src\Core\Debug*
