@@ -1,0 +1,15 @@
+Backup
+Backup/*
+*.pdf
+*.html
+*.opensdf
+*.obj
+*.sdf
+*.suo
+*.jpg
+*.png
+*.fnt
+*.vcxproj.filters
+chai3d-3.0.0/examples/GLUT/00- V2/ipch
+chai3d-3.0.0/examples/GLUT/00- V2/obj
+chaid3d-3.0.0/**
