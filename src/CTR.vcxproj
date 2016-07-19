@@ -85,7 +85,7 @@
       <AdditionalOptions>/MP %(AdditionalOptions)</AdditionalOptions>
       <Optimization>Disabled</Optimization>
       <WholeProgramOptimization>false</WholeProgramOptimization>
-      <AdditionalIncludeDirectories>../../../external/gsl/include;../../../external/LeapSDK/include;../../../src;../../../external/LeapSDK;../../../external/Eigen;../../../external/glew/include;../../../extras/LibOVR/Src;../../../extras/LibOVR/Src/Kernel;../../../extras/LibOVR/Src/Service;../../../extras/LibOVR/Src/Tracking;../../../extras/LibOVR/Src/Net;../../../extras/LibOVR/Src/Displays;../../../extras/LibOVR/Src/Sensors;../../../extras/LibOVR/Src/CAPI;../../../extras/LibOVR/Src/Util;../../../extras/LibOVR/Include;../../../extras/freeglut/include;../../../external/unsupported/Eigen/src;../../../external/unsupported/Eigen/src/NonLinearOptimization;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\src</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_MSVC;_CRT_SECURE_NO_WARNINGS;GSL_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -168,7 +168,7 @@
       <OmitFramePointers>true</OmitFramePointers>
       <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
       <WholeProgramOptimization>false</WholeProgramOptimization>
-      <AdditionalIncludeDirectories>../../../extras/LibOVR/Src/Kernel;../../../external/gsl/include;../../../external/LeapSDK/include;../../../external/LeapSDK;../../../extras/LibOVR/Src/Service;../../../extras/LibOVR/Src/CAPI;../../../extras/LibOVR/Include;../../../extras/LibOVR/Src/Util;../../../extras/LibOVR/Src/Sensors;../../../extras/LibOVR/Src/Displays;../../../extras/LibOVR/Src/Net;../../../extras/LibOVR/Src/Tracking;../../../src;../../../extras/LibOVR/Src;../../../external/Eigen;../../../external/glew/include;../../../extras/freeglut/include;../../../external/unsupported/Eigen/src/NonLinearOptimization;../../../external/unsupported/Eigen/src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\src</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_MSVC;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>

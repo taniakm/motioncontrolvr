@@ -1,5 +1,3 @@
-Backup
-Backup/*
 *.pdf
 *.html
 *.opensdf
@@ -10,6 +8,11 @@ Backup/*
 *.png
 *.fnt
 *.vcxproj.filters
-chai3d-3.0.0/examples/GLUT/00- V2/ipch
-chai3d-3.0.0/examples/GLUT/00- V2/obj
-chaid3d-3.0.0/**
+*.ipch
+*.log
+*.tlog
+*.pdb
+*.cache
+*.lastbuildstate
+*.unsuccessfulbuild
+*.vcxproj.user
