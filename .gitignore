@@ -27,3 +27,4 @@
 *.ilk
 external/**
 src/TeleoperationGUI/GeneratedFiles/**
+src/Core/Debug/**

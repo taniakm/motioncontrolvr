@@ -75,13 +75,13 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <_ProjectFileVersion>10.0.40219.1</_ProjectFileVersion>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../../../bin\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../$(Platform)/$(Configuration)/</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">obj/$(Configuration)/$(Platform)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</LinkIncremental>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../../bin\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">obj/$(Configuration)/$(Platform)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</LinkIncremental>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../../../bin\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../$(Platform)/$(Configuration)/</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">obj/$(Configuration)/$(Platform)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkIncremental>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../../bin\</OutDir>
@@ -111,7 +111,7 @@
     </ProjectReference>
     <Link>
       <AdditionalDependencies>libgsl.lib;freeglut.lib;chai3d.lib;libovrd.lib;Ws2_32.lib;leap.lib;Core.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+      <OutputFile>../$(Platform)/$(Configuration)/$(TargetName)$(TargetExt)</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <AdditionalLibraryDirectories>C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\gsl\lib;C:\Users\Tania\Documents\MotionControl\trunk\OculusSDK\LibOVR\Lib\Win32\VS2010;C:\Users\Tania\Documents\MotionControl\trunk\LeapSDK\lib\x64;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\lib\Debug\Win32;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\LeapSDK\lib\x64;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\lib\$(Configuration)/$(Platform);C:\Users\Tania\Documents\motioncontrolvr\external\freeglut\lib;C:\Users\Tania\Documents\motioncontrolvr\src\$(Configuration)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
@@ -194,7 +194,7 @@
     </ProjectReference>
     <Link>
       <AdditionalDependencies>freeglut.lib;chai3d.lib;libovr.lib;libgsl.lib;Ws2_32.lib;leap.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+      <OutputFile>../$(Platform)/$(Configuration)/$(TargetName)$(TargetExt)</OutputFile>
       <AdditionalLibraryDirectories>C:/Users/Tania/Documents/MotionControl/chai3d-3.0.0/external/gsl/lib;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\extras\freeglut\lib\Debug\Win32;C:\Users\Tania\Documents\MotionControl\trunk\OculusSDK\LibOVR\Lib\Win32\VS2010;C:\Users\Tania\Documents\MotionControl\trunk\LeapSDK\lib\x64</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <GenerateDebugInformation>false</GenerateDebugInformation>
