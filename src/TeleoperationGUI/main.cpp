@@ -1,5 +1,6 @@
 #include "teleoperationgui.h"
 #include <QtGui/QApplication>
+#include "addtube.h"
 
 int main(int argc, char *argv[])
 {

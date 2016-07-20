@@ -1,4 +1,6 @@
 #include "teleoperationgui.h"
+#include "addtube.h"
+#include "ui_addtube.h"
 
 TeleoperationGUI::TeleoperationGUI(QWidget *parent, Qt::WFlags flags)
 	: QMainWindow(parent, flags)
@@ -9,4 +11,9 @@ TeleoperationGUI::TeleoperationGUI(QWidget *parent, Qt::WFlags flags)
 TeleoperationGUI::~TeleoperationGUI()
 {
 
+}
+
+void TeleoperationGUI::addTubeButtonPressed() {
+	AddTube *dialog = new AddTube();
+	dialog->exec();
 }
