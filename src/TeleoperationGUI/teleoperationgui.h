@@ -3,6 +3,7 @@
 
 #include <QtGui/QMainWindow>
 #include "ui_teleoperationgui.h"
+#include<QFile>
 
 class TeleoperationGUI : public QMainWindow
 {
@@ -12,11 +13,16 @@ public:
 	TeleoperationGUI(QWidget *parent = 0, Qt::WFlags flags = 0);
 	~TeleoperationGUI();
 
+	QFile file;
+	int tubeNum;
+	
+
 	private slots:
 		void addTubeButtonPressed();
 
 private:
 	Ui::TeleoperationGUIClass ui;
+	//int tubeNum;
 
 };
 
