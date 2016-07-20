@@ -22,4 +22,8 @@
 *.manifest
 *.idb
 *.exe
-src\Core\Debug*
+*.ui
+*.qrc
+*.ilk
+external/**
+src/TeleoperationGUI/GeneratedFiles/**

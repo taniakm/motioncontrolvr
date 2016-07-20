@@ -1,5 +1,6 @@
 #pragma once
-#include "c:\users\tania\documents\motioncontrol\chai3d-3.0.0\external\leapsdk\include\leap.h"
+//#include "c:\users\tania\documents\motioncontrol\chai3d-3.0.0\external\leapsdk\include\leap.h"
+#include "Leap.h"
 #include "chai3d.h"
 
 using namespace chai3d;

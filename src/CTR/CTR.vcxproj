@@ -21,12 +21,10 @@
   <ItemGroup>
     <ClCompile Include="CPhantomDeviceWithClutch.cpp" />
     <ClCompile Include="CTR.cpp" />
-    <ClCompile Include="LeapListener.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CPhantomDeviceWithClutch.h" />
     <ClInclude Include="CTR.h" />
-    <ClInclude Include="LeapListener.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectName>CTR</ProjectName>
@@ -95,7 +93,7 @@
       <AdditionalOptions>/MP %(AdditionalOptions)</AdditionalOptions>
       <Optimization>Disabled</Optimization>
       <WholeProgramOptimization>false</WholeProgramOptimization>
-      <AdditionalIncludeDirectories>C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\src;C:\Users\Tania\Documents\motioncontrolvr\src\Core;C:\Users\Tania\Documents\MotionControl\trunk\OculusSDK\LibOVR\Src\Util;C:\Users\Tania\Documents\MotionControl\trunk\OculusSDK\LibOVR\Src\Service;C:\Users\Tania\Documents\MotionControl\trunk\OculusSDK\LibOVR\Src\Sensors;C:\Program Files %28x86%29\Microsoft SDKs\Windows\v7.0A\Include;C:\Users\Tania\Documents\MotionControl\trunk\eigen-3.2.1\Eigen;C:\Users\Tania\Documents\MotionControl\trunk\glew-1.9.0\include;C:\Users\Tania\Documents\MotionControl\trunk\LeapSDK\include;C:\Users\Tania\Documents\MotionControl\trunk\OculusSDK\LibOVR\Src;C:\Users\Tania\Documents\MotionControl\trunk\OculusSDK\LibOVR\Src\Kernel;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\gsl\include;C:\Users\Tania\Documents\MotionControl\trunk\eigen-3.2.1\unsupported\Eigen\src</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Tania\Documents\MotionControl\trunk\glew-1.9.0\include;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\src;C:\Users\Tania\Documents\motioncontrolvr\src\Core;C:\Users\Tania\Documents\MotionControl\trunk\OculusSDK\LibOVR\Src\Util;C:\Users\Tania\Documents\MotionControl\trunk\OculusSDK\LibOVR\Src\Service;C:\Users\Tania\Documents\motioncontrolvr\external\freeglut\include;C:\Users\Tania\Documents\MotionControl\trunk\OculusSDK\LibOVR\Src\Sensors;C:\Program Files %28x86%29\Microsoft SDKs\Windows\v7.0A\Include;C:\Users\Tania\Documents\MotionControl\trunk\eigen-3.2.1\Eigen;C:\Users\Tania\Documents\MotionControl\trunk\LeapSDK\include;C:\Users\Tania\Documents\MotionControl\trunk\OculusSDK\LibOVR\Src;C:\Users\Tania\Documents\MotionControl\trunk\OculusSDK\LibOVR\Src\Kernel;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\gsl\include;C:\Users\Tania\Documents\MotionControl\trunk\eigen-3.2.1\unsupported\Eigen\src;C:\Users\Tania\Documents\MotionControl\trunk\OculusSDK\LibOVR\Src\CAPI</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_MSVC;_CRT_SECURE_NO_WARNINGS;GSL_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -112,10 +110,10 @@
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
     <Link>
-      <AdditionalDependencies>libgsl.lib;freeglut.lib;chai3d.lib;libovrd.lib;Ws2_32.lib;leap.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libgsl.lib;freeglut.lib;chai3d.lib;libovrd.lib;Ws2_32.lib;leap.lib;Core.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalLibraryDirectories>../../../external/gsl/bin;../../../external/gsl/lib;../../../external/LeapSDK/lib/x86;../../../extras/LibOVR/Lib/Win32/VS2010;../../../lib/$(Configuration)/$(Platform);../../../extras/freeglut/lib/$(Configuration)/$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\gsl\lib;C:\Users\Tania\Documents\MotionControl\trunk\OculusSDK\LibOVR\Lib\Win32\VS2010;C:\Users\Tania\Documents\MotionControl\trunk\LeapSDK\lib\x64;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\lib\Debug\Win32;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\LeapSDK\lib\x64;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\lib\$(Configuration)/$(Platform);C:\Users\Tania\Documents\motioncontrolvr\external\freeglut\lib;C:\Users\Tania\Documents\motioncontrolvr\src\$(Configuration)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(TargetDir)$(TargetName).pdb</ProgramDatabaseFile>
@@ -197,7 +195,7 @@
     <Link>
       <AdditionalDependencies>freeglut.lib;chai3d.lib;libovr.lib;libgsl.lib;Ws2_32.lib;leap.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
-      <AdditionalLibraryDirectories>../../../extras/LibOVR/Lib/Win32/VS2010;../../../lib/$(Configuration)/$(Platform);../../../extras/freeglut/lib/$(Configuration)/$(Platform);../../../external/LeapSDK/lib/x86;../../../external/gsl/lib;../../../external/gsl/bin;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:/Users/Tania/Documents/MotionControl/chai3d-3.0.0/external/gsl/lib;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\extras\freeglut\lib\Debug\Win32;C:\Users\Tania\Documents\MotionControl\trunk\OculusSDK\LibOVR\Lib\Win32\VS2010;C:\Users\Tania\Documents\MotionControl\trunk\LeapSDK\lib\x64</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>

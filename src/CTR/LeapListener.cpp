@@ -3,7 +3,7 @@
 #include <iostream>
 #include <string.h>
 #include "Leap.h"
-#include "chai3d.h"
+//#include "chai3d.h"
 
 using namespace chai3d;
 using namespace Leap;

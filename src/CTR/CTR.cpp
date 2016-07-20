@@ -19,8 +19,8 @@
 #include "CPhantomDeviceWithClutch.h"
 #include "ConcentricTubeSet.h"
 
-//#include "Leap.h"
-//#include "LeapListener.h"
+#include "Leap.h"
+#include "LeapListener.h"
 #include "CTR.h"
 #include "SerialClass.h"
 #include <math.h> 
@@ -38,11 +38,8 @@ using namespace OVR::Util::Render;
 using namespace Leap;
 using namespace std;
 //------------------------------------------------------------------------------
-#ifndef MACOSX
+
 #include "GL/glut.h"
-#else
-#include "GLUT/glut.h"
-#endif
 
 //#define TESTBED
 #define DEBOUNCE_TIME 0.20
@@ -337,6 +334,8 @@ int							rotNum = 0;
 
 float						userEyeSeparation = 0.005;
 float						userEyeFocalLength = 0.5;
+
+#ifdef USE_LEAP 
 //------------------------------------------------------------------------------
 // LEAP VARIABLES
 //------------------------------------------------------------------------------
@@ -411,6 +410,7 @@ float						vertError;
 cVector3d					globalHandCenter;
 cGenericCollision*			lineDetector[6];
 cCollisionRecorder			lineRecorder[6];
+#endif
 
 //------------------------------------------------------------------------------
 // ARDUINO COMMUNICATION VARIABLES
@@ -674,7 +674,8 @@ int main(int argc, char* argv[])
 
 	simulationRunning = true;
 
-
+	
+#ifdef USE_LEAP
 	//--------------------------------------------------------------------------
 	// SET UP LEAP MOTION CONTROL
 	//--------------------------------------------------------------------------
@@ -692,6 +693,7 @@ int main(int argc, char* argv[])
 	controller.config().setFloat("Gesture.Swipe.MinVelocity", 300);
 	controller.config().save();
 	controller.enableGesture(Gesture::TYPE_CIRCLE);
+#endif
 
 	//--------------------------------------------------------------------------
 	// OPEN GL - WINDOW DISPLAY
@@ -1147,6 +1149,7 @@ int main(int argc, char* argv[])
 	//camera->m_frontLayer->addChild(leapBitmap);	
 	
 	// left hand
+#ifdef USE_LEAP
 	leftCenterSphere = new cShapeSphere(0.03);						// create a sphere to represent the center of the hand
 	originSphere2->addChild(leftCenterSphere);						// insert handCenterSphere sphere inside world
 	cMaterial leftSphereMaterial;
@@ -1198,6 +1201,7 @@ int main(int argc, char* argv[])
 		rightFingers.rightFingerLine[i]->m_colorPointB = boneColor;
 		rightFingers.rightFingerLine[i]->setEnabled(false);
 	}
+#endif
 	// Collision detector
 	//indexDetector = new cGenericCollision();
 	//rightFingers.rightFingerLine[4]->setCollisionDetector(indexDetector);
@@ -1897,6 +1901,7 @@ void updateOculusSensorReadings(void)
 
 }
 
+#ifdef USE_LEAP
 //------------------------------------------------------------------------------
 // Get information from Leap
 //------------------------------------------------------------------------------
@@ -2286,6 +2291,7 @@ void respondToSwipe(void) {
 		rotateUpDown(dir, originSphere);
 	}
 }
+#endif
 
 void rotateLeftRight(int dir, cShapeSphere* objectToRotate) {
 	if(dir==1) {	
@@ -2327,6 +2333,7 @@ void setTransparent(cMultiMesh* transparentMesh) {
 	transparentMesh->setTransparencyLevel(0.1,true,false);
 }
 
+#ifdef USE_LEAP
 void checkGrip(void) {
 	int thumbInd = 4;
 	int indexInd = 9;
@@ -2346,6 +2353,7 @@ void checkGrip(void) {
 	posSphere->setLocalPos(boxCent);
 
 }
+#endif
 
 void zoom(float deltaOffset) {
 	oculusOffset = oculusOffset + deltaOffset;
@@ -5100,7 +5108,7 @@ void setTubeParams(ConcentricTubeSet set) {
 
 }
 
-
+#ifdef USE_LEAP
 void checkIndexCollision(void) {
 	float numSpheres = set.sStored.size();
 	for(int i=0; i<numSpheres; i++) {
@@ -5110,6 +5118,7 @@ void checkIndexCollision(void) {
 		}
 	}
 }
+#endif
 
 //------------------------------------------------------------------------------
 // Update view
@@ -5145,6 +5154,8 @@ void setShowMaterialLabels() {
 //------------------------------------------------------------------------------
 // Old functions...
 //------------------------------------------------------------------------------
+
+#ifdef USE_LEAP
 void colorPixels(unsigned int x, unsigned int y) {
 	cColorb color;
 	color.setRedDarkSalmon();
@@ -5154,7 +5165,6 @@ void colorPixels(unsigned int x, unsigned int y) {
 		}
 	}
 }
-
 void showInteractionBox(InteractionBox interactionBox) {
 	boxCenter = interactionBox.center();
 	boxHeight = interactionBox.height();			// along leap y [mm]
@@ -5196,7 +5206,7 @@ void showInteractionBox(InteractionBox interactionBox) {
 
 	
 }
-
+#endif
 
 
 

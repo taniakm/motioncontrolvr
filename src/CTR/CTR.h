@@ -1,5 +1,4 @@
 #include "chai3d.h"
-#include "Leap.h"
 //#include "ConcentricTubeSet.h"
 //#include "SerialClass.h"
 #include "gsl/gsl_linalg.h"
@@ -9,7 +8,6 @@
 
 //------------------------------------------------------------------------------
 using namespace chai3d;
-using namespace Leap;
 using namespace std;
 
 //#define BEGIN_TIMING(x,y) \
