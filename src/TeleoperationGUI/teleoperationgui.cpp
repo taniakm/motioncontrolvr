@@ -4,6 +4,7 @@
 #include<QDebug>
 //#include<QFile>
 #include<QTextStream>
+#include<QProcess>
 
 TeleoperationGUI::TeleoperationGUI(QWidget *parent, Qt::WFlags flags)
 	: QMainWindow(parent, flags)
@@ -59,6 +60,8 @@ void TeleoperationGUI::addTubeButtonPressed() {
 }
 
 void TeleoperationGUI::doneButtonPressed() {
+	QProcess *interfaceProcess = new QProcess(this);
+
 	this->close();
 }
 

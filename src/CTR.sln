@@ -10,6 +10,12 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Core", "Core\Core.vcxproj",
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TeleoperationGUI", "TeleoperationGUI\TeleoperationGUI.vcxproj", "{BB5BEA67-5CBA-40B3-88FD-D65D59CE455F}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TeleoperationInterface", "TeleoperationInterface\TeleoperationInterface.vcxproj", "{34906106-21D6-490A-AE57-16C19B8A27EE}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8E030B50-03DC-4888-B2FB-646FE2C6B9A8} = {8E030B50-03DC-4888-B2FB-646FE2C6B9A8}
+		{BB5BEA67-5CBA-40B3-88FD-D65D59CE455F} = {BB5BEA67-5CBA-40B3-88FD-D65D59CE455F}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -38,6 +44,12 @@ Global
 		{BB5BEA67-5CBA-40B3-88FD-D65D59CE455F}.Release|Win32.ActiveCfg = Release|Win32
 		{BB5BEA67-5CBA-40B3-88FD-D65D59CE455F}.Release|Win32.Build.0 = Release|Win32
 		{BB5BEA67-5CBA-40B3-88FD-D65D59CE455F}.Release|x64.ActiveCfg = Release|Win32
+		{34906106-21D6-490A-AE57-16C19B8A27EE}.Debug|Win32.ActiveCfg = Debug|Win32
+		{34906106-21D6-490A-AE57-16C19B8A27EE}.Debug|Win32.Build.0 = Debug|Win32
+		{34906106-21D6-490A-AE57-16C19B8A27EE}.Debug|x64.ActiveCfg = Debug|Win32
+		{34906106-21D6-490A-AE57-16C19B8A27EE}.Release|Win32.ActiveCfg = Release|Win32
+		{34906106-21D6-490A-AE57-16C19B8A27EE}.Release|Win32.Build.0 = Release|Win32
+		{34906106-21D6-490A-AE57-16C19B8A27EE}.Release|x64.ActiveCfg = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
