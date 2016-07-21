@@ -57,3 +57,10 @@ void TeleoperationGUI::addTubeButtonPressed() {
 	}
 	
 }
+
+void TeleoperationGUI::doneButtonPressed() {
+	this->close();
+}
+
+
+

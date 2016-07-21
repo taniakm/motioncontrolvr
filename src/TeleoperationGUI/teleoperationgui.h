@@ -4,6 +4,7 @@
 #include <QtGui/QMainWindow>
 #include "ui_teleoperationgui.h"
 #include<QFile>
+#include "addtube.h"
 
 class TeleoperationGUI : public QMainWindow
 {
@@ -19,10 +20,10 @@ public:
 
 	private slots:
 		void addTubeButtonPressed();
+		void doneButtonPressed();
 
 private:
 	Ui::TeleoperationGUIClass ui;
-	//int tubeNum;
 
 };
 
