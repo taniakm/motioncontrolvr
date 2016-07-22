@@ -129,7 +129,29 @@ int main(int argc, char* argv[])
     cursor = new cShapeSphere(0.01);
     world->addChild(cursor);					// insert cursor inside world
 
+	//--------------------------------------------------------------------------
+    // HAPTIC DEVICE
+    //--------------------------------------------------------------------------
+	//hapticDevice = std::shared_ptr < cGenericHapticDevice > ((cGenericHapticDevice *)(new cPhantomDeviceWithClutch(0)));
+	//hapticDevice->open();
+	//cHapticDeviceInfo info = hapticDevice->getSpecifications();	// retrieve info about current device
 
+ //   cHapticDeviceInfo info = hapticDevice->getSpecifications();		// retrieve information about the current haptic device
+	//// display a reference frame if haptic device supports orientations
+ //   if (info.m_sensedRotation == true)    {
+ //       cursor->setShowFrame(true);				// display reference frame
+ //       cursor->setFrameSize(0.05);				// set the size of the reference frame
+ //   }
+
+	
+	//// create a tool (cursor) and insert into the world
+ //   tool = new cToolCursor(world);
+	//camera->addChild(tool);
+	//tool->setHapticDevice(hapticDevice);						// connect haptic device to virtual tool
+	//tool->setWorkspaceRadius(0.7);								// map physical workspace of haptic device to virtual workspace
+	//tool->setRadius(toolRadius);								// define radius for sphere (virtual tool)
+	//tool->setShowEnabled(true);
+	//tool->start();												// start haptic tool
 
 	//--------------------------------------------------------------------------
     // START SIMULATION
@@ -188,7 +210,6 @@ void keySelect(unsigned char key, int x, int y)
 
 	// Start teleoperation interface
 	if (key == 's') {
-
 		// Check number of tubes 	
 		FILE *f = fopen("C:/Users/Tania/Documents/motioncontrolvr/src/TeleoperationGUI/numTubesFile.txt", "rb");
 		if(f != NULL) {
@@ -257,18 +278,32 @@ void keySelect(unsigned char key, int x, int y)
 				t.E = 1625;
 				t.v = 0.4;
 			}
+			// Assumtions for alpha and Beta values to start (can change later if we want this as an input to the GUI)
+			t.alpha = 0;
+			if(i==2) {	// for tube 2
+				t.Beta = -0.004;
+			} else if(i==1) {
+				t.Beta = -0.01;
+			} else if(i==0) {
+				t.Beta = -0.022;
+			}
 			set.addTube(t);
 		}
-
 	}
 
 }
 
+//------------------------------------------------------------------------------
+// Close window
+//------------------------------------------------------------------------------
 void close(void)
 {
 
 }
 
+//------------------------------------------------------------------------------
+// Graphics Timer
+//------------------------------------------------------------------------------
 void graphicsTimer(int data)
 {
 	if (simulationRunning){
@@ -278,6 +313,9 @@ void graphicsTimer(int data)
     glutTimerFunc(50, graphicsTimer, 0);
 }
 
+//------------------------------------------------------------------------------
+// Update Graphics
+//------------------------------------------------------------------------------
 void updateGraphics(void)
 {
 	// render world
@@ -293,6 +331,9 @@ void updateGraphics(void)
 
 }
 
+//------------------------------------------------------------------------------
+// Haptic loop
+//------------------------------------------------------------------------------
 void updateHaptics(void)
 {
 
@@ -302,43 +343,3 @@ void updateHaptics(void)
 
 
 
-
-
-
-	
-
-	//// Call function to set up all tube parameters
-	//setTubeParams(set);
-
-	//for(int i=0; i<nTubes; i++) {
-	//	ConcentricTubeSet::tube t;
-	//	
-	//	t.alpha = alpha_init[i];
-	//	t.OD = OD_init[i];
-	//	t.ID = ID_init[i];
-	//	t.E = E_init[i];
-	//	t.v = v_init[i];
-	//	t.kappa = kappa_init[i];
-	//	t.Beta = Beta_init[i];
-	//	t.Lc = Lc_init[i];
-	//	t.Ls = Ls_init[i];
-	//	t.materialNum = 0;		// set initial material to Nitinol
-
-	//	t.moment_guess = 0;
-
-	//	set.addTube(t);
-	//}
-	//// Call function to set up material display properties
-	//for(int i=0; i<nTubes; i++) {
-	//	updateTubeMaterial(set, i, 0);
-	//}
-
-
-	//char path[150];
-	//int i = 0;
-	//for(i=0; i<set.n_tubes; i++) {
-	//	sprintf(path, "C:/Users/Tania/Documents/motioncontrolvr/src/TeleoperationGUI/tubeParameterFile%d.txt", i);
-	//	ConcentricTubeSet::tube t;
-	//	loadTube(path, &t);
-	//	set.m_tubes[i] = t;
-	//}
