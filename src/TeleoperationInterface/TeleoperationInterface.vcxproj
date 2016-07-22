@@ -43,12 +43,12 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\src;C:\Users\Tania\Documents\MotionControl\trunk\eigen-3.2.1\Eigen;C:\Users\Tania\Documents\motioncontrolvr\src\Core;C:\Users\Tania\Documents\MotionControl\trunk\glew-1.9.0\include;C:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\Include;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\gsl\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\src;C:\Users\Tania\Documents\MotionControl\trunk\eigen-3.2.1\Eigen;C:\Users\Tania\Documents\motioncontrolvr\src\Core;C:\Users\Tania\Documents\MotionControl\trunk\glew-1.9.0\include;C:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\Include;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\gsl\include;C:\Users\Tania\Documents\MotionControl\trunk\eigen-3.2.1\unsupported\Eigen\src;C:\Users\Tania\Documents\motioncontrolvr\external\freeglut\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <OutputFile>../$(Platform)/$(Configuration)/$(TargetName)$(TargetExt)</OutputFile>
-      <AdditionalDependencies>chai3d.lib;Ws2_32.lib;freeglut.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>chai3d.lib;Ws2_32.lib;freeglut.lib;libgsl.lib;Core.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\lib\Debug\Win32;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\lib\$(Configuration)/$(Platform);C:\Users\Tania\Documents\motioncontrolvr\src\$(Configuration);C:\Users\Tania\Documents\motioncontrolvr\external\freeglut\lib;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\gsl\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>

@@ -36,6 +36,10 @@ int windowPosX;
 int windowPosY;
 
 
+// Kinematics Variables
+ConcentricTubeSet set;
+
+
 //------------------------------------------------------------------------------
 // DECLARED FUNCTIONS
 //------------------------------------------------------------------------------
@@ -45,7 +49,8 @@ void updateGraphics(void);									// callback to render graphic scene
 void graphicsTimer(int data);								// callback of GLUT timer
 void close(void);											// function that closes the application
 void updateHaptics(void);									// main haptics simulation loop
-
+//void loadTube(const char *path, ConcentricTubeSet::tube *t);
+//void loadTubeParameters(ConcentricTubeSet::tube *t);
 //==============================================================================
 
 
@@ -162,6 +167,100 @@ void resizeWindow(int w, int h)
 //------------------------------------------------------------------------------
 void keySelect(unsigned char key, int x, int y)
 {
+	// Toggle fullscreen
+	if (key == 'f') {
+        if (fullscreen)
+        {
+            windowPosX = glutGet(GLUT_INIT_WINDOW_X);
+            windowPosY = glutGet(GLUT_INIT_WINDOW_Y);
+            windowW = glutGet(GLUT_INIT_WINDOW_WIDTH);
+            windowH = glutGet(GLUT_INIT_WINDOW_HEIGHT);
+            glutPositionWindow(windowPosX, windowPosY);
+            glutReshapeWindow(windowW, windowH);
+            fullscreen = false;
+        }
+        else
+        {
+            glutFullScreen();
+            fullscreen = true;
+        }
+    }
+
+	// Start teleoperation interface
+	if (key == 's') {
+
+		// Check number of tubes 	
+		FILE *f = fopen("C:/Users/Tania/Documents/motioncontrolvr/src/TeleoperationGUI/numTubesFile.txt", "rb");
+		if(f != NULL) {
+			int val;
+			fscanf(f,"%i",&val);
+			fclose(f);
+			tubeNum = val;
+			printf("Number of tubes: %i \n", tubeNum);
+		} else {
+			printf("file null");
+		}
+
+		// load tube parameters
+		for(int i=0; i<tubeNum; i++) {
+			char path[150];
+			sprintf(path, "C:/Users/Tania/Documents/motioncontrolvr/src/TeleoperationGUI/tubeParameterFile%d.txt", i);
+			ConcentricTubeSet::tube t;
+
+			FILE *f = fopen(path, "rb");
+			char buf[1000];
+			fscanf(f,"%s",buf);
+			printf("%s \n",buf);
+			fclose(f);
+
+			char tempVal[10];
+			float properties[6];
+			int propertyNum = 0;
+			int ind = 0;
+			bool startFilling = false;
+			for(int j=0; j<sizeof(buf); j++) {
+				if(buf[j]==':') {
+					startFilling = true;
+				} else if(buf[j] == ',') {
+					tempVal[ind] = '\0';
+					properties[propertyNum] = std::stof(tempVal);
+					printf("%f \n",properties[propertyNum]);
+					ind = 0;
+					propertyNum++;
+					startFilling = false;
+				} else if(buf[j] == ';') {
+					startFilling = false;
+					tempVal[ind] = '\0';
+					properties[propertyNum] = std::stof(tempVal);
+					printf("%f \n",properties[propertyNum]);
+					printf("done with all \n");
+				} else if(startFilling) {
+					tempVal[ind] = buf[j];
+					ind++;
+				}
+			}
+
+			// Save values read into tube structure
+			t.OD = properties[0];
+			t.ID = properties[1];
+			t.kappa = properties[2];
+			t.Ls = properties[3];
+			t.Lc = properties[4];
+			t.materialNum = properties[5];	
+			if(t.materialNum == 0) {	// Niti
+				t.E = 50000000000;
+				t.v = 0.33;
+			} else if(t.materialNum == 1) {	// PEBA
+				t.E = 75;
+				t.v = 0.4;
+			} else if(t.materialNum == 2) { // Accura
+				t.E = 1625;
+				t.v = 0.4;
+			}
+			set.addTube(t);
+		}
+
+	}
 
 }
 
@@ -197,4 +296,49 @@ void updateGraphics(void)
 void updateHaptics(void)
 {
 
+
+	
 }
+
+
+
+
+
+
+	
+
+	//// Call function to set up all tube parameters
+	//setTubeParams(set);
+
+	//for(int i=0; i<nTubes; i++) {
+	//	ConcentricTubeSet::tube t;
+	//	
+	//	t.alpha = alpha_init[i];
+	//	t.OD = OD_init[i];
+	//	t.ID = ID_init[i];
+	//	t.E = E_init[i];
+	//	t.v = v_init[i];
+	//	t.kappa = kappa_init[i];
+	//	t.Beta = Beta_init[i];
+	//	t.Lc = Lc_init[i];
+	//	t.Ls = Ls_init[i];
+	//	t.materialNum = 0;		// set initial material to Nitinol
+
+	//	t.moment_guess = 0;
+
+	//	set.addTube(t);
+	//}
+	//// Call function to set up material display properties
+	//for(int i=0; i<nTubes; i++) {
+	//	updateTubeMaterial(set, i, 0);
+	//}
+
+
+	//char path[150];
+	//int i = 0;
+	//for(i=0; i<set.n_tubes; i++) {
+	//	sprintf(path, "C:/Users/Tania/Documents/motioncontrolvr/src/TeleoperationGUI/tubeParameterFile%d.txt", i);
+	//	ConcentricTubeSet::tube t;
+	//	loadTube(path, &t);
+	//	set.m_tubes[i] = t;
+	//}

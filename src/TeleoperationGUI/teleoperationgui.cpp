@@ -42,12 +42,12 @@ void TeleoperationGUI::addTubeButtonPressed() {
 	// Write text to file
 	if(TeleoperationGUI::file.open(QIODevice::WriteOnly | QIODevice::Text)) {
 		QTextStream stream(&file);
-		stream << "OD\t" << QString(ODtemp) << "\n";
-		stream << "ID\t" << QString(IDtemp) << "\n";
-		stream << "kappa\t" << QString(kappatemp) << "\n";
-		stream << "Ls\t" << QString(Lstemp) << "\n";
-		stream << "Lc\t" << QString(Lctemp) << "\n";
-		stream << "material\t" << QString(materialtemp) << "\n";
+		stream << "OD:" << QString(ODtemp) << ",";
+		stream << "ID:" << QString(IDtemp) << ",";
+		stream << "kappa:" << QString(kappatemp) << ",";
+		stream << "Ls:" << QString(Lstemp) << ",";
+		stream << "Lc:" << QString(Lctemp) << ",";
+		stream << "material:" << QString(materialtemp) << ";";
 
 		file.close();
 		tubeNum = tubeNum + 1;
@@ -60,8 +60,17 @@ void TeleoperationGUI::addTubeButtonPressed() {
 }
 
 void TeleoperationGUI::doneButtonPressed() {
-	QProcess *interfaceProcess = new QProcess(this);
+	// Save number of tubes and write to file
+	QString numTubesTemp = ui.textNumTubes->toPlainText();
+	QString filename = "numTubesFile.txt";
+	TeleoperationGUI::file.setFileName(filename);
+	if(TeleoperationGUI::file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+		QTextStream stream(&file);
+		stream << QString(numTubesTemp) << "\n";
+		file.close();
+	}
 
+	// close GUI
 	this->close();
 }
 
