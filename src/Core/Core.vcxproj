@@ -12,10 +12,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ConcentricTubeSet.cpp" />
+    <ClCompile Include="CPhantomDeviceWithClutch.cpp" />
     <ClCompile Include="Serial.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ConcentricTubeSet.h" />
+    <ClInclude Include="CPhantomDeviceWithClutch.h" />
     <ClInclude Include="SerialClass.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -49,8 +51,8 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\src;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\unsupported\Eigen\src;C:\Users\Tania\Documents\MotionControl\trunk\eigen-3.2.1\Eigen;C:\Users\Tania\Documents\MotionControl\trunk\glew-1.9.0\include;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\gsl\include;C:\Program Files %28x86%29\Microsoft SDKs\Windows\v7.0A\Include</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\gsl\include;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\src;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\Eigen;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\glew\include;C:\Program Files %28x86%29\Microsoft SDKs\Windows\v7.0A\Include;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\unsupported\Eigen\src</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;GSL_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>

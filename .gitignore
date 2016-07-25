@@ -25,6 +25,7 @@
 *.ui
 *.qrc
 *.ilk
+*.txt
 external/**
 src/TeleoperationGUI/GeneratedFiles/**
 src/Core/Debug/**

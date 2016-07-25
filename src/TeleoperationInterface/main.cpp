@@ -130,35 +130,15 @@ int main(int argc, char* argv[])
 	// create a sphere (cursor) to represent the haptic device
     cursor = new cShapeSphere(0.01);
     world->addChild(cursor);					// insert cursor inside world
+	cursor->setShowFrame(true);
+	cursor->setFrameSize(0.05);
 
 	//--------------------------------------------------------------------------
     // HAPTIC DEVICE
-    //--------------------------------------------------------------------------
-    
-	//cHapticDeviceInfo info = hapticDevice->getSpecifications();	// retrieve info about current device
-	//
-	//camera->addChild(cursor);
-	//cursor->setShowFrame(true);
-	//cursor->setFrameSize(0.05);
-
-	//// create a tool (cursor) and insert into the world
- //   tool = new cToolCursor(world);
-	//camera->addChild(tool);
-	//tool->setHapticDevice(hapticDevice);						// connect haptic device to virtual tool
-	//tool->setWorkspaceRadius(0.7);								// map physical workspace of haptic device to virtual workspace
-	//tool->setRadius(toolRadius);								// define radius for sphere (virtual tool)
-	//tool->setShowEnabled(true);
-	////tool->setShowFrame(true);									// display reference frame
-	////tool->setFrameSize(0.05);									// set the size of the reference frame
-	//tool->start();												// start haptic tool
-
-	
-	// *** for testing whether haptic device is connected ***
-    handler = new cHapticDeviceHandler();			// create a haptic device handler
-    handler->getDevice(hapticDevice, 0);			// get a handle to the first haptic device
-	int numDevices = handler->getNumDevices();
-	printf("num devices: %i", numDevices);
-
+    //--------------------------------------------------------------------------    
+	hapticDevice = std::shared_ptr < cGenericHapticDevice > ((cGenericHapticDevice *)(new cPhantomDeviceWithClutch(0)));
+	hapticDevice->open();
+	cHapticDeviceInfo info = hapticDevice->getSpecifications();	// retrieve info about current device
 
 
 	//--------------------------------------------------------------------------
@@ -377,11 +357,11 @@ void updateHaptics(void)
 		//hapticDevice->getUserSwitch(0, button0);
   //      hapticDevice->getUserSwitch(1, button1);
 		// read position
-		/*cVector3d position;
+		cVector3d position;
         hapticDevice->getPosition(position);
 
         cMatrix3d rotation;
-        hapticDevice->getRotation(rotation);*/
+        hapticDevice->getRotation(rotation);
 
 		//cVector3d position;
 		//position = tool->getDeviceLocalPos();
@@ -392,11 +372,8 @@ void updateHaptics(void)
         // UPDATE 3D CURSOR MODEL
         /////////////////////////////////////////////////////////////////////
 		// update position and orientation of cursor
-        /*cursor->setLocalPos(position);
-        cursor->setLocalRot(rotation);*/
-
-		//cursor->setLocalPos(position);
-		//cursor->setLocalRot(rotation);
+		cursor->setLocalPos(position);
+		cursor->setLocalRot(rotation);
 
 
 		/////////////////////////////////////////////////////////////////////
