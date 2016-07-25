@@ -320,8 +320,6 @@ void ConcentricTubeSet::convertStateToDouble(void) {
 }
 
 
-
-
 ////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////// SOLVE FORWARD KINEMATICS /////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -584,11 +582,6 @@ int solveForwardKinematics(ConcentricTubeSet &set)
 		s += h;
 	}
 
-	// ************ testing ****************
-	/*gsl_odeiv_evolve_free(e);
-	gsl_odeiv_control_free(c);*/
-    // *************************************
-
 	gsl_odeiv_step_free (step);
 
 	//----- For remaining intervals, use previous end state as initial condition -----
@@ -596,11 +589,6 @@ int solveForwardKinematics(ConcentricTubeSet &set)
 
 		const gsl_odeiv_step_type * T  = gsl_odeiv_step_rkf45;					// Step type (rk 45)
 		gsl_odeiv_step * step = gsl_odeiv_step_alloc (T, numStates);
-
-		// ************ testing ****************
-		/*gsl_odeiv_control * c = gsl_odeiv_control_y_new (1e-6, 0.0);
-		gsl_odeiv_evolve * e = gsl_odeiv_evolve_alloc (numStates);*/
-		// *************************************
 
 		gsl_odeiv_system sys = {kinematicFunction, jac, numStates, &set};		// set up system
 
@@ -635,13 +623,6 @@ int solveForwardKinematics(ConcentricTubeSet &set)
 			//BEGIN_TIMING(finalSolve,10);
 			int status = gsl_odeiv_step_apply (step, s, h, y, y_err, dyds_in, dyds_out, &sys);
 
-			// ************ testing ****************
-			/*int status = gsl_odeiv_evolve_apply (e, c, step,
-                                           &sys, 
-                                           &s, s1,
-                                           &h, y);*/
-			// *************************************
-
 			if (status != GSL_SUCCESS)
 				break;
 
@@ -671,9 +652,6 @@ int solveForwardKinematics(ConcentricTubeSet &set)
 					set.momentStored.tube6Moment.push_back(y[n+5]);
 				}
 			}
-			//set.momentStored.push_back(y[n]);
-			//set.momentStored.push_back(y[n+1]);
-			//set.momentStored.push_back(y[n+2]);
 
 			set.positionStored.x.push_back(y[2*n]);
 			set.positionStored.y.push_back(y[2*n+1]);
@@ -694,15 +672,7 @@ int solveForwardKinematics(ConcentricTubeSet &set)
 			s += h;
 			//END_TIMING(finalSolve,10);
 		}
-
-		// ************ testing ****************
-		/*gsl_odeiv_evolve_free(e);
-		gsl_odeiv_control_free(c);*/
-		// *************************************
-
 		gsl_odeiv_step_free (step);
-
-
 	}
 
 	printf ("s: %f psi: %f psi: %f psi: %f\n", s, y[0], y[1], y[2]);
@@ -723,7 +693,6 @@ int solveForwardKinematics(ConcentricTubeSet &set)
 		set.u[i] = set.m_tubes[i].moment_guess;
 	}
 
-
 	 return GSL_SUCCESS;
 }
 
@@ -735,297 +704,32 @@ int solveInitConditions(ConcentricTubeSet &set) {
 		
 	 }
 
-	//////////////////////////////////////////////
-	//// **************** new code ****************
-	//const size_t sizeResVec = set.m_tubes.size();
-	//double *x_init;
-	//x_init = new double[sizeResVec];
-	//gsl_vector *x = gsl_vector_alloc (sizeResVec);
-	//for(int i=0; i<sizeResVec; i++) {
-	//	x_init[i] = set.m_tubes[i].moment_guess;
-	//	gsl_vector_set (x, i, x_init[i]);
-	//}
-
-	////----------------------- Compute necessary parameters ----------------------------
-	//int n = set.m_tubes.size();											// number of tubes
-	//int numStates = 12 + 2*n;										    // number of states
-	////----------------- Compute discontinuities and intervals -------------------------
-	//set.discontinuitiesList = set.computeDiscontinuities();
-	//set.computeIntervals(set.discontinuitiesList);
-
-	////------- For the first time through, use the following initial conditions --------
-	//float midpointValue = set.intAndMid.midpoint[0];
-	//set.computeKbKt(midpointValue);
-	//set.computeKappa(midpointValue);
-	//vector <double> sVec;
-	//sVec.erase(sVec.begin(),sVec.end());
-	//sVec.push_back(set.intAndMid.intervalLow[0]);
-	//sVec.push_back(set.intAndMid.intervalHigh[0]);
-
-	//for(int i=0; i<n;i++) {				
-	//	
-	//	set.initConditions[i+n] = gsl_vector_get(x,i);
-	//	set.initConditions[i] = (set.m_tubes[i].alpha - set.m_tubes[i].Beta*set.m_tubes[i].ktInv*gsl_vector_get(x,i));		
-
-	//	//set.initConditions[i+n] = xcurr[i];
-	//	//set.initConditions[i] = (set.m_tubes[i].alpha - set.m_tubes[i].Beta*set.m_tubes[i].ktInv*xcurr[i]);
-
-	//}
-	//set.Pb_0 = cVector3d(0,0,0);
-	//set.initConditions[2*n] = set.Pb_0(0);				// x position of robot at s=0
-	//set.initConditions[2*n+1] = set.Pb_0(1);			// y position of robot at s=0
-	//set.initConditions[2*n+2] = set.Pb_0(2);			// z position of robot at s=0
-	//set.Rb_0 = cMatrix3d(1,0,0,0,1,0,0,0,1);
-	//int iter = 0;
-	//for(int i=0; i<3; i++) {
-	//	for(int j=0; j<3; j++) {
-	//		set.initConditions[2*n+3+iter] = set.Rb_0(i,j);		    // rotation of robot
-	//		iter = iter + 1;
-	//	}
-	//}
-
-	////--------------- Set up ODE to solve with initial conditions --------------------	
-	//const gsl_odeiv_step_type * T  = gsl_odeiv_step_rkf45;					// Step type (rk 45)
-	//gsl_odeiv_step * step = gsl_odeiv_step_alloc (T, numStates);
-	//gsl_odeiv_system sys = {kinematicFunction, jac, numStates, &set};		// set up system
-	//double s = sVec[0], s1 = sVec[1];
- //   double h = 10e-4;//10e-4; //5e-4;												//**** trade-off between speed and accuracy... ****************
-	//double *y; double *y_err;
-	//y_err = new double[numStates];
-	//y = new double[numStates];
-	//for(int i=0; i<numStates; i++) {
-	//	y[i] = set.initConditions[i];										// set initial conditions
-	//}
-	//double *dyds_in; double *dyds_out;
-	//dyds_in = new double[numStates];
-	//dyds_out = new double[numStates];
- //   GSL_ODEIV_FN_EVAL(&sys, s, y, dyds_in);									// initialize dyds_in from system parameters 
-	//while (s < s1) {
- //       int status = gsl_odeiv_step_apply (step, s, h, y, y_err, dyds_in, dyds_out, &sys);
-	//	if (status != GSL_SUCCESS)
- //           break;
-
-	//	for(int i=0; i<numStates; i++) {
-	//		dyds_in[i] = dyds_out[i];
-	//	}
-
-	//	s += h;
-	//}
-	//gsl_odeiv_step_free (step);
-
-	////----- For remaining intervals, use previous end state as initial condition -----
-	//for(int i=1; i<(set.intAndMid.midpoint.size()); i++) {
-
-	//	const gsl_odeiv_step_type * T  = gsl_odeiv_step_rkf45;					// Step type (rk 45)
-	//	gsl_odeiv_step * step = gsl_odeiv_step_alloc (T, numStates);
-	//	gsl_odeiv_system sys = {kinematicFunction, jac, numStates, &set};		// set up system
-
-	//	set.computeKbKt(set.intAndMid.midpoint[i]);
-	//	set.computeKappa(set.intAndMid.midpoint[i]);
-	//	sVec.erase(sVec.begin(),sVec.end());
-	//	sVec.push_back(set.intAndMid.intervalLow[i]);
-	//	sVec.push_back(set.intAndMid.intervalHigh[i]);
-
-
-	//	delete dyds_in;
-	//	delete dyds_out;
-	//	dyds_in = new double[numStates];
-	//	dyds_out = new double[numStates];
-
-	//	// set initial conditions as the END of previous section
-	//	for(int j=0; j<numStates; j++) {
-	//		set.initConditions[j] = y[j];				// ****** does it only give the last state??******
-	//	}
-	//	delete y;
-	//	delete y_err;
-	//	y_err = new double[numStates];
-	//	y = new double[numStates];
-	//	for(int k=0; k<numStates; k++) {
-	//		y[k] = set.initConditions[k];									// set initial conditions
-	//	}
-
-	//	// solve ODE
-	//	s = sVec[0], s1 = sVec[1];
-	//	GSL_ODEIV_FN_EVAL(&sys, s, y, dyds_in);								// initialize dyds_in from system parameters 
-	//	while (s < s1) {
-	//		int status = gsl_odeiv_step_apply (step, s, h, y, y_err, dyds_in, dyds_out, &sys);
-	//		if (status != GSL_SUCCESS)
-	//			break;
-
-	//		for(int l=0; l<numStates; l++) {
-	//		dyds_in[l] = dyds_out[l];
-	//		}
-
-	//		s += h;
-	//	}
-	//	gsl_odeiv_step_free (step);
-	//}
-
 	////////////////////////////////////////////////////
 	//// ******* SET UP FUNCTION FOR SOLVER HERE *****************
 	//// using output from ODE solver (y[i+n])
-	////xvec.resize(numTubes);
-
-	//Eigen::VectorXf xvec(numTubes);
-	//for(int i=0; i<n; i++) {
-	//	xvec(i) = y[i+n];
-	//}
-
 	//////////////////////////////////////////////////
 
 
 	for(int i=0; i<numTubes; i++) {
 		xvec(i) = set.m_tubes[i].moment_guess;
 	}
-	// xvec should be moment guess?
-
-	
 
 	funcToSolve func;
 	func.tubeSet = &set;
 	Eigen::LevenbergMarquardt<funcToSolve, float> lm(func);
 	lm.minimize(xvec);
 
-
-
 	printf("x0: %f \n", xvec(0));
 	printf("x1: %f \n", xvec(1));
 	printf("x2: %f \n", xvec(2));
-
 
 	// Set initial moment as solved value
 	for(int i=0; i<numTubes; i++){
 		set.m_tubes[i].moment_guess = xvec(i);
 		solvedState[i] = xvec(i);
 	}
-
-	//***** GSL code for fsolve *******
-	 //const gsl_multiroot_fsolver_type *T;
-	 //gsl_multiroot_fsolver *solver;
-	 //int status;
-	 //size_t iter = 0;	 
-	 //const size_t sizeResVec = set.m_tubes.size();			
-	 //gsl_multiroot_function f = {&findZeroResVec, sizeResVec, &set};
-
-	 //double *x_init;
-	 //x_init = new double[sizeResVec];
-	 //gsl_vector *x = gsl_vector_alloc (sizeResVec);
-	 //for(int i=0; i<sizeResVec; i++) {
-		//x_init[i] = set.m_tubes[i].moment_guess;
-		//gsl_vector_set (x, i, x_init[i]);
-	 //}
-
-	 //T = gsl_multiroot_fsolver_hybrids;
-	 //solver = gsl_multiroot_fsolver_alloc (T, sizeResVec);
-	 //gsl_multiroot_fsolver_set (solver, &f, x);
-
-
-
-	 //do
-  //   {
-  //     iter++;
-  //     status = gsl_multiroot_fsolver_iterate (solver);
-
-	 //  printf("iter: %i, x: %f  %f  %f \n",iter, gsl_vector_get (solver->x, 0), gsl_vector_get (solver->x, 1),gsl_vector_get (solver->x, 2));
-	 //  printf("iter: %i, f: %f  %f  %f \n",iter, gsl_vector_get (solver->f, 0), gsl_vector_get (solver->f, 1),gsl_vector_get (solver->f, 2));
-
-	 // //  for debugging value of dx and seeing if it's NaN
-	 //  printf("dx: %f \n", gsl_vector_get(solver->dx, 0));
-	 //  printf("dx: %f \n", gsl_vector_get(solver->dx, 1));
-	 //  printf("dx: %f \n", gsl_vector_get(solver->dx, 2));
-	 //  
-	 //  if(gsl_vector_get(solver->dx, 0) != gsl_vector_get(solver->dx, 0)) {
-		//   printf("caught NAN case \n");
-		//   set.isValidSet = false;				// set cannot be solved
-		//   break;								// try using this to break out?
-	 //  } else {
-		//   set.isValidSet = true;
-	 //  }
-
-  //     if (status)   /* check if solver is stuck */
-  //       break;
-
-  //     status = 
-  //       gsl_multiroot_test_residual (solver->f, 1e-3);				//
-  //   }
-	 //while (status == GSL_CONTINUE && iter < 1000);
-
-	 //printf ("status = %s\n", gsl_strerror (status));
-
-	 //// Set initial moment as solved value
-	 //for(int i=0; i<sizeResVec; i++){
-		// set.m_tubes[i].moment_guess = gsl_vector_get (solver->x, i);
-		// solvedState[i] = gsl_vector_get (solver->x, i);
-	 //}
-
-	 //gsl_multiroot_fsolver_free (solver);
-	 //gsl_vector_free (x);
-
-	
-
 	 return 0;
 }
-
-//int solveInitConditions(ConcentricTubeSet &set) {
-//
-//	//*********************** set first guess to 0 ************
-//	for(int i=0; i<set.m_tubes.size(); i++) {
-//		set.m_tubes[i].moment_guess = 0;
-//		
-//	 }
-//
-//	const gsl_multiroot_fdfsolver_type *T;
-//	gsl_multiroot_fdfsolver *solver;
-//
-//	int status;
-//	size_t iter = 0;
-//	const size_t sizeResVec = set.m_tubes.size();
-//	gsl_multiroot_function_fdf f = {&findZeroResVec, &findZeroResVec_df, &findZeroResVec_fdf, sizeResVec, &set};
-//
-//	double *x_init;
-//	x_init = new double[sizeResVec];
-//	gsl_vector *x = gsl_vector_alloc (sizeResVec);
-//	for(int i=0; i<sizeResVec; i++) {
-//		x_init[i] = set.m_tubes[i].moment_guess;
-//		gsl_vector_set (x, i, x_init[i]);
-//	}
-//
-//	T = gsl_multiroot_fdfsolver_hybridsj;
-//	solver = gsl_multiroot_fdfsolver_alloc (T, sizeResVec);
-//	gsl_multiroot_fdfsolver_set (solver, &f, x);
-//
-//	 do
-//     {
-//       iter++;
-//       status = gsl_multiroot_fdfsolver_iterate (solver);
-//
-//	   printf("iter: %i, x: %f  %f  %f \n",iter, gsl_vector_get (solver->x, 0), gsl_vector_get (solver->x, 1),gsl_vector_get (solver->x, 2));
-//	   printf("iter: %i, f: %f  %f  %f \n",iter, gsl_vector_get (solver->f, 0), gsl_vector_get (solver->f, 1),gsl_vector_get (solver->f, 2));
-//
-//       if (status)   /* check if solver is stuck */
-//         break;
-//
-//       status = 
-//         gsl_multiroot_test_residual (solver->f, 1e-6);				//
-//     }
-//	 while (status == GSL_CONTINUE && iter < 1000);
-//
-//	 printf ("status = %s\n", gsl_strerror (status));
-//
-//	 // Set initial moment as solved value
-//	 for(int i=0; i<sizeResVec; i++){
-//		 set.m_tubes[i].moment_guess = gsl_vector_get (solver->x, i);
-//		 solvedState[i] = gsl_vector_get (solver->x, i);
-//	 }
-//
-//	 gsl_multiroot_fdfsolver_free (solver);
-//	 gsl_vector_free (x);
-//
-//
-//
-//	 return 0;
-//}
-
 
 
 static int numIts = 0;
@@ -1116,11 +820,6 @@ int findZeroResVec (const gsl_vector * x, void *params, gsl_vector * f)
 	for(int i=0; i<numStates; i++) {
 		y[i] = set.initConditions[i];										// set initial conditions
 	}
-	/*double *dyds_in; double *dyds_out;
-	dyds_in = new double[numStates];
-	dyds_out = new double[numStates];
-    GSL_ODEIV_FN_EVAL(&sys, s, y, dyds_in);	*/								// initialize dyds_in from system parameters 
-
 
 	while (s < s1) {
 		//BEGIN_TIMING(kinematics,10);
@@ -1171,12 +870,6 @@ int findZeroResVec (const gsl_vector * x, void *params, gsl_vector * f)
 		sVec.erase(sVec.begin(),sVec.end());
 		sVec.push_back(set.intAndMid.intervalLow[i]);
 		sVec.push_back(set.intAndMid.intervalHigh[i]);
-
-
-		/*delete dyds_in;
-		delete dyds_out;
-		dyds_in = new double[numStates];
-		dyds_out = new double[numStates];*/
 
 		// set initial conditions as the END of previous section
 		for(int j=0; j<numStates; j++) {
@@ -1252,61 +945,6 @@ int findZeroResVec (const gsl_vector * x, void *params, gsl_vector * f)
 	
 }
 
-//int findZeroResVec_df (const gsl_vector * x, void *params, gsl_matrix *J) {
-//	ConcentricTubeSet set = *(ConcentricTubeSet *)params;				// recast
-//	int numTubes = set.m_tubes.size();									// number of tubes
-//
-//	// Must solve through kinematics first
-//	solveForwardKinematics(set);
-//
-//	// Then can compute Jacobian
-//	gsl_matrix* gTemp = gsl_matrix_alloc(4,4);
-//	gTemp = computeG(set);
-//	set.gInv = computeGInv(gTemp);
-//	gsl_vector* qBar = gsl_vector_alloc(2*numTubes);
-//	gsl_vector* uBar = gsl_vector_alloc(numTubes);
-//	
-//	for(int i=0; i<numTubes; i++) {
-//		gsl_vector_set(qBar,i,set.m_tubes[i].alpha);
-//		gsl_vector_set(qBar,i+numTubes,set.m_tubes[i].Beta);
-//		gsl_vector_set(uBar,i,set.m_tubes[i].moment_guess);
-//	}
-//
-//	computeEq(set, qBar, uBar);
-//	computeEu(set, qBar, uBar);
-//
-//	gsl_matrix * BuInv = gsl_matrix_alloc(numTubes,numTubes);
-//    int s;
-//    gsl_permutation * p = gsl_permutation_alloc (numTubes);
-//    gsl_linalg_LU_decomp (set.Bu, p, &s); // Bu is always nxn (factorize Bu into LU decomposition
-//    gsl_linalg_LU_invert (set.Bu, p, BuInv);
-//    
-//    gsl_permutation_free (p);
-//    gsl_matrix * prod1 = gsl_matrix_alloc(6,numTubes);
-//    gsl_matrix * prod2 = gsl_matrix_alloc(6,2*numTubes);
-//    
-//    
-//    gsl_linalg_matmult(set.Eu,BuInv,prod1);
-//    gsl_linalg_matmult(prod1,set.Bq,prod2);
-//	gsl_matrix_sub(set.Eq,prod2);
-//	for(int i=0; i<6; i++) {
-//		for(int j=0; j<(2*numTubes); j++) {
-//			gsl_matrix_set(J,i,j,gsl_matrix_get(set.Eq,i,j));
-//		} 
-//	}
-//
-//    //gsl_matrix_memcpy (J, set.Eq);     // copy values of Eq to Jb
-//    //gsl_matrix_sub(J,prod2);        // NOTE: INITIALIZE JB TO BE GLOBAL VARIABLE
-//
-//	return GSL_SUCCESS;
-//}
-//
-//int findZeroResVec_fdf (const gsl_vector *x, void *params, gsl_vector *f, gsl_matrix *J) {
-//	findZeroResVec(x,params,f);
-//	findZeroResVec_df(x,params,J);
-//
-//	return GSL_SUCCESS;
-//}
 
 // Set up ODE
 int kinematicFunction (double s, const double y[], double dyds[], void *params)
@@ -1423,10 +1061,6 @@ gsl_matrix* computeGInv(gsl_matrix * gBar) {
 	cMatrix3d rot = cMatrix3d(gsl_matrix_get(gBar,0,0),gsl_matrix_get(gBar,0,1),gsl_matrix_get(gBar,0,2),
 							  gsl_matrix_get(gBar,1,0),gsl_matrix_get(gBar,1,1),gsl_matrix_get(gBar,1,2),
 							  gsl_matrix_get(gBar,2,0),gsl_matrix_get(gBar,2,1),gsl_matrix_get(gBar,2,2));
-	/*cMatrix3d rot = cMatrix3d(gsl_matrix_get(gBar,0,0),gsl_matrix_get(gBar,0,1),gsl_matrix_get(gBar,0,2),
-							  gsl_matrix_get(gBar,1,0),gsl_matrix_get(gBar,1,1),gsl_matrix_get(gBar,1,2),
-							  gsl_matrix_get(gBar,2,0),gsl_matrix_get(gBar,2,1),gsl_matrix_get(gBar,2,2));
-*/
 	rot = cTranspose(rot);
 	cVector3d v = cVector3d(gsl_matrix_get(gBar,0,3),gsl_matrix_get(gBar,1,3),gsl_matrix_get(gBar,2,3));
 	cVector3d v_new;
@@ -1576,8 +1210,6 @@ void computeEq(ConcentricTubeSet &set, gsl_vector* q, gsl_vector* uBar) {
 		//gsl_matrix_sub(g_pos,g_neg);	
         //gsl_linalg_matmult(set.gInv,g_pos,EqiMatrix);			// second term is g_pos-g_neg (just stored in g_pos)
 		
-
-
 		// testing multiplication using eigen
 		Eigen::MatrixXf EqiMatrix_eig;
 		Eigen::MatrixXf gInv_eig;
@@ -1633,11 +1265,6 @@ void computeEq(ConcentricTubeSet &set, gsl_vector* q, gsl_vector* uBar) {
             gsl_matrix_set(set.Eq,j+n,i,gsl_vector_get(w,j));
         }
         gsl_vector* val = gsl_vector_alloc(n);
-		//for(int k=0; k<n; k++) {
-		//	gsl_vector_set(val,k,gsl_vector_get(b_pos,k));
-		//}
-		//gsl_vector_sub(val,b_neg);
-		//gsl_vector_scale(val,1/(2*gsl_vector_get(h,i)));
 
 		Eigen::VectorXf val_eig;
 		Eigen::VectorXf b_pos_eig;
@@ -1765,13 +1392,6 @@ void computeEu(ConcentricTubeSet &set, gsl_vector* q, gsl_vector* uBar) {
 		}
      
         // Form Eu and Bu based on perturbed states
-		//gsl_matrix_sub(g_pos,g_neg);			
-        //gsl_linalg_matmult(set.gInv,g_pos,EuiMatrix);			// second term is g_pos-g_neg (just stored in g_pos)
-		//gsl_matrix_scale(EuiMatrix, 1/(2*gsl_vector_get(h,i)));
-
-
-
-
 		Eigen::MatrixXf EuiMatrix_eig;
 		Eigen::MatrixXf gInv_eig;
 		Eigen::MatrixXf g_pos_eig;
@@ -1784,9 +1404,6 @@ void computeEu(ConcentricTubeSet &set, gsl_vector* q, gsl_vector* uBar) {
 		EuiMatrix_eig = gInv_eig*g_sub;
 		EuiMatrix_eig = EuiMatrix_eig*(1/(2*h_scaled));
 		EuiMatrix = convertEigenToGSLMatrix(EuiMatrix_eig);
-
-
-
 
         gsl_vector_set(w,0,gsl_matrix_get(EuiMatrix,2,1));
         gsl_vector_set(w,1,gsl_matrix_get(EuiMatrix,0,2));
@@ -1802,12 +1419,6 @@ void computeEu(ConcentricTubeSet &set, gsl_vector* q, gsl_vector* uBar) {
         }
        
 		gsl_vector* val = gsl_vector_alloc(n);
-		/*for(int k=0; k<n; k++) {
-			gsl_vector_set(val,k,gsl_vector_get(b_pos,k));
-		}
-		gsl_vector_sub(val,b_neg);
-		gsl_vector_scale(val,1/(2*gsl_vector_get(h,i)));*/
-
 		Eigen::VectorXf val_eig;
 		Eigen::VectorXf b_pos_eig;
 		Eigen::VectorXf b_neg_eig;
@@ -1816,9 +1427,7 @@ void computeEu(ConcentricTubeSet &set, gsl_vector* q, gsl_vector* uBar) {
 		val_eig = b_pos_eig - b_neg_eig;
 		val_eig = val_eig*(1/(2*h_scaled));
 		val = convertEigenToGSLVector(val_eig);
-
-
-		
+	
 		for(int j=0; j<n; j++) {
 			gsl_matrix_set(set.Bu,j,i,gsl_vector_get(val,j));
 		}
@@ -1846,100 +1455,6 @@ void computeEu(ConcentricTubeSet &set, gsl_vector* q, gsl_vector* uBar) {
 	printf("%f \t %f \t %f \n", gsl_matrix_get(set.Eu,5,0),gsl_matrix_get(set.Eu,5,1),gsl_matrix_get(set.Eu,5,2));
 
 }
-//
-
-
-
-//
-//gsl_matrix* computeGInv(gsl_matrix * gBar) {
-//	cMatrix3d rot = cMatrix3d(gsl_matrix_get(gBar,0,0),gsl_matrix_get(gBar,0,1),gsl_matrix_get(gBar,0,2),
-//							  gsl_matrix_get(gBar,1,0),gsl_matrix_get(gBar,1,1),gsl_matrix_get(gBar,1,2),
-//							  gsl_matrix_get(gBar,2,0),gsl_matrix_get(gBar,2,1),gsl_matrix_get(gBar,2,2));
-//	rot = cTranspose(rot);
-//	cVector3d v = cVector3d(gsl_matrix_get(gBar,0,3),gsl_matrix_get(gBar,1,3),gsl_matrix_get(gBar,2,3));
-//	cVector3d v_new;
-//	v_new = -cMul(rot,v);
-//
-//	gsl_matrix * gInv = gsl_matrix_alloc(4,4);
-//	// set rotation part of matrix
-//	for(int i=0; i<3; i++) {
-//		for(int j=0; j<3; j++) {
-//			gsl_matrix_set(gInv,i,j,gsl_matrix_get(rot,i,j));
-//		}
-//	}
-//	// set translation part of matrix
-//	gsl_matrix_set(gInv,0,3,gsl_vector_get(v_new,0));
-//	gsl_matrix_set(gInv,0,3,gsl_vector_get(v_new,1));
-//	gsl_matrix_set(gInv,0,3,gsl_vector_get(v_new,2));
-//	// set final row of matrix
-//	gsl_matrix_set(gInv,3,0,0);
-//	gsl_matrix_set(gInv,3,1,0);
-//	gsl_matrix_set(gInv,3,2,0);
-//	gsl_matrix_set(gInv,3,3,1);
-//
-//
-//	return gInv;
-//
-//}
-//
-//
-//// inputs: qBar (joint variables used to solve), uBar (proximal moment guess used to solve), gBar (homogeneous transform)
-//
-////
-//void computeEq(ConcentricTubeSet &set, gsl_vector* q, gsl_vector* u) {
-//	int n = set.m_tubes.size();
-//	int qSize = q->size();
-//	float h_alpha = 10e-5;			// for perturbing alpha [rad]
-//	float h_beta = 10e-5;			// for perturbing beta [m]
-//	gsl_vector * h = gsl_vector_alloc(qSize);
-//	gsl_vector * q_pert_pos = gsl_vector_alloc(qSize);
-//	gsl_vector * q_pert_neg = gsl_vector_alloc(qSize);
-//
-//	ConcentricTubeSet posSet;
-//	ConcentricTubeSet negSet;
-//	posSet = set;
-//	negSet = set;
-//
-//	
-//	for(int i=0; i<(2*n); i++) {
-//		// initialize all h to zero
-//		for(int j=0; j<qSize; j++) {
-//			gsl_vector_set(h,j,0);
-//		}
-//		// set h for given parameter to h_alpha or h_beta
-//		if(i<n) {
-//			gsl_vector_set(h,i,h_alpha);
-//		} else {
-//			gsl_vector_set(h,i,h_beta);
-//		}
-//		// perturb q in pos direction and solve kinematics for perturbed parameters
-//		q_pert_pos = q + h;
-//		for(int j=0; j<qSize; j++) {
-//			posSet.m_tubes[j].alpha = gsl_vector_get(q_pert_pos,j);
-//			posSet.m_tubes[j].Beta = gsl_vector_get(q_pert_pos,qSize+j);
-//			posSet.m_tubes[j].moment_guess = gsl_vector_get(u,j);
-//		}
-//		solveForwardKinematics(&posSet);
-//
-//		// perturb q in neg direction and solve kinematics for perturbed parameters
-//		q_pert_neg = q - h;
-//		for(int j=0; j<qSize; j++) {
-//			negSet.m_tubes[j].alpha = gsl_vector_get(q_pert_neg,j);
-//			negSet.m_tubes[j].Beta = gsl_vector_get(q_pert_neg,qSize+j);
-//			negSet.m_tubes[j].moment_guess = gsl_vector_get(u,j);
-//		}
-//		solveForwardKinematics(&negSet);
-//
-//
-//		//
-//	}
-//}
-//
-
-
-
-
-
 
 
 

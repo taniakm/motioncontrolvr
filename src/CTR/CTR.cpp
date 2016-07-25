@@ -755,7 +755,10 @@ int main(int argc, char* argv[])
 	//--------------------------------------------------------------------------
 	// HAPTIC DEVICE
 	//--------------------------------------------------------------------------
-	//handler = new cHapticDeviceHandler();						// create haptic device handler
+	handler = new cHapticDeviceHandler();						// create haptic device handler
+	int numDevices = handler->getNumDevices();
+	printf("num devices: %i \n", numDevices);
+
 	//handler->getDevice(hapticDevice, 0);						// get a handle to first haptic device
 	hapticDevice = std::shared_ptr < cGenericHapticDevice > ((cGenericHapticDevice *)(new cPhantomDeviceWithClutch(0)));
 	hapticDevice->open();

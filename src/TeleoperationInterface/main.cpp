@@ -10,9 +10,8 @@ using namespace std;
 //------------------------------------------------------------------------------
 // GENERAL SETTINGS
 //------------------------------------------------------------------------------
-cStereoMode stereoMode = C_STEREO_PASSIVE_LEFT_RIGHT;
+cStereoMode stereoMode = C_STEREO_DISABLED;
 bool fullscreen = false;				// fullscreen mode
-bool mirroredDisplay = false;			// mirrored display
 
 //------------------------------------------------------------------------------
 // DECLARED VARIABLES
@@ -24,6 +23,8 @@ cHapticDeviceHandler* handler;			// a haptic device handler
 cGenericHapticDevicePtr hapticDevice;	// a pointer to the current haptic device
 cVector3d hapticDevicePosition;			// a global variable to store the position [m] of the haptic device 
 cShapeSphere* cursor;					// a small sphere (cursor) representing the haptic device
+cToolCursor* tool;						// tool
+double	toolRadius = 0.01;				// radius of cursor
 bool simulationRunning = false;			// flag to indicate if the haptic simulation currently running
 bool simulationFinished = true;			// flag to indicate if the haptic simulation has terminated
 
@@ -38,6 +39,9 @@ int windowPosY;
 
 // Kinematics Variables
 ConcentricTubeSet set;
+cThread* kinematicsThread;
+bool setInvalidated = false;
+bool readyToStart = false;
 
 
 //------------------------------------------------------------------------------
@@ -49,8 +53,8 @@ void updateGraphics(void);									// callback to render graphic scene
 void graphicsTimer(int data);								// callback of GLUT timer
 void close(void);											// function that closes the application
 void updateHaptics(void);									// main haptics simulation loop
-//void loadTube(const char *path, ConcentricTubeSet::tube *t);
-//void loadTubeParameters(ConcentricTubeSet::tube *t);
+void runKinematics(void);									// to call the kinematics function
+void kinematics(ConcentricTubeSet &set);
 //==============================================================================
 
 
@@ -109,7 +113,8 @@ int main(int argc, char* argv[])
     world = new cWorld();						// create a new world.	
     world->m_backgroundColor.setBlack();		// set the background color of the environment
 	// create a camera and insert it into the virtual world
-    camera = new cCamera(world);				
+    camera = new cCamera(world);
+	camera->setUseOculus(false);
     world->addChild(camera);
     // position and orient the camera
     camera->set( cVector3d (0.5, 0.0, 0.0),     // camera position (eye)
@@ -117,9 +122,6 @@ int main(int argc, char* argv[])
                  cVector3d (0.0, 0.0, 1.0));    // direction of the (up) vector
     camera->setClippingPlanes(0.01, 10.0);		// set the near and far clipping planes of the camera
     camera->setStereoMode(stereoMode);			// set stereo mode
-    camera->setStereoEyeSeparation(0.01);		// set stereo eye separation (applies only if stereo is enabled)
-    camera->setStereoFocalLength(0.5);			// set stereo focal length (applies only if stereo is enabled)
-    camera->setMirrorVertical(mirroredDisplay); // set vertical mirrored display mode
     light = new cDirectionalLight(world);	    // create a directional light source
     world->addChild(light);					    // insert light source inside world
     light->setEnabled(true);				    // enable light source               
@@ -132,18 +134,13 @@ int main(int argc, char* argv[])
 	//--------------------------------------------------------------------------
     // HAPTIC DEVICE
     //--------------------------------------------------------------------------
-	//hapticDevice = std::shared_ptr < cGenericHapticDevice > ((cGenericHapticDevice *)(new cPhantomDeviceWithClutch(0)));
-	//hapticDevice->open();
+    
 	//cHapticDeviceInfo info = hapticDevice->getSpecifications();	// retrieve info about current device
+	//
+	//camera->addChild(cursor);
+	//cursor->setShowFrame(true);
+	//cursor->setFrameSize(0.05);
 
- //   cHapticDeviceInfo info = hapticDevice->getSpecifications();		// retrieve information about the current haptic device
-	//// display a reference frame if haptic device supports orientations
- //   if (info.m_sensedRotation == true)    {
- //       cursor->setShowFrame(true);				// display reference frame
- //       cursor->setFrameSize(0.05);				// set the size of the reference frame
- //   }
-
-	
 	//// create a tool (cursor) and insert into the world
  //   tool = new cToolCursor(world);
 	//camera->addChild(tool);
@@ -151,7 +148,18 @@ int main(int argc, char* argv[])
 	//tool->setWorkspaceRadius(0.7);								// map physical workspace of haptic device to virtual workspace
 	//tool->setRadius(toolRadius);								// define radius for sphere (virtual tool)
 	//tool->setShowEnabled(true);
+	////tool->setShowFrame(true);									// display reference frame
+	////tool->setFrameSize(0.05);									// set the size of the reference frame
 	//tool->start();												// start haptic tool
+
+	
+	// *** for testing whether haptic device is connected ***
+    handler = new cHapticDeviceHandler();			// create a haptic device handler
+    handler->getDevice(hapticDevice, 0);			// get a handle to the first haptic device
+	int numDevices = handler->getNumDevices();
+	printf("num devices: %i", numDevices);
+
+
 
 	//--------------------------------------------------------------------------
     // START SIMULATION
@@ -189,6 +197,13 @@ void resizeWindow(int w, int h)
 //------------------------------------------------------------------------------
 void keySelect(unsigned char key, int x, int y)
 {
+	// option ESC: exit
+    if ((key == 27) || (key == 'x'))
+    {
+        close();
+        exit(0);
+    }
+
 	// Toggle fullscreen
 	if (key == 'f') {
         if (fullscreen)
@@ -289,6 +304,9 @@ void keySelect(unsigned char key, int x, int y)
 			}
 			set.addTube(t);
 		}
+		// create a thread which starts the kinematics loop
+		kinematicsThread = new cThread();
+		readyToStart = true;
 	}
 
 }
@@ -298,7 +316,14 @@ void keySelect(unsigned char key, int x, int y)
 //------------------------------------------------------------------------------
 void close(void)
 {
+	// stop the simulation
+    simulationRunning = false;
 
+    // wait for graphics and haptics loops to terminate
+    while (!simulationFinished) { cSleepMs(100); }
+
+    // close haptic device
+    hapticDevice->close();
 }
 
 //------------------------------------------------------------------------------
@@ -336,10 +361,63 @@ void updateGraphics(void)
 //------------------------------------------------------------------------------
 void updateHaptics(void)
 {
+	// simulation in now running
+    simulationRunning  = true;
+    simulationFinished = false;
+
+    // main haptic simulation loop
+    while(simulationRunning)
+    {
+        /////////////////////////////////////////////////////////////////////
+        // READ HAPTIC DEVICE
+        /////////////////////////////////////////////////////////////////////
+		// read user-switch status 
+		//bool button0 = false;
+		//bool button1 = false;
+		//hapticDevice->getUserSwitch(0, button0);
+  //      hapticDevice->getUserSwitch(1, button1);
+		// read position
+		/*cVector3d position;
+        hapticDevice->getPosition(position);
+
+        cMatrix3d rotation;
+        hapticDevice->getRotation(rotation);*/
+
+		//cVector3d position;
+		//position = tool->getDeviceLocalPos();
+		//cMatrix3d rotation;
+		//rotation = tool->getDeviceLocalRot();
+
+        /////////////////////////////////////////////////////////////////////
+        // UPDATE 3D CURSOR MODEL
+        /////////////////////////////////////////////////////////////////////
+		// update position and orientation of cursor
+        /*cursor->setLocalPos(position);
+        cursor->setLocalRot(rotation);*/
+
+		//cursor->setLocalPos(position);
+		//cursor->setLocalRot(rotation);
 
 
+		/////////////////////////////////////////////////////////////////////
+        // COMPUTE FORWARD KINEMATICS TO DETERMINE CURRENT TIP POS
+        /////////////////////////////////////////////////////////////////////
+		if(readyToStart) {
+			//kinematicsThread->start(runKinematics, CTHREAD_PRIORITY_HAPTICS);
+		}
+
+	}
+	// exit haptics thread
+    simulationFinished = true;
 	
 }
 
 
-
+//------------------------------------------------------------------------------
+// Thread to compute kinematics
+//------------------------------------------------------------------------------
+void runKinematics(void) {
+	kinematics(set);	
+	setInvalidated = true;
+	printf("kinematics computed \n");
+}
