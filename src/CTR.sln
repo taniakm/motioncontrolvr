@@ -14,7 +14,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TeleoperationInterface", "T
 	ProjectSection(ProjectDependencies) = postProject
 		{8E030B50-03DC-4888-B2FB-646FE2C6B9A8} = {8E030B50-03DC-4888-B2FB-646FE2C6B9A8}
 		{BB5BEA67-5CBA-40B3-88FD-D65D59CE455F} = {BB5BEA67-5CBA-40B3-88FD-D65D59CE455F}
+		{4526C878-3DF8-4687-A1B1-2CD3B2F51F9A} = {4526C878-3DF8-4687-A1B1-2CD3B2F51F9A}
 	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RobotControl", "RobotControl\RobotControl.vcxproj", "{4526C878-3DF8-4687-A1B1-2CD3B2F51F9A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -50,6 +53,12 @@ Global
 		{34906106-21D6-490A-AE57-16C19B8A27EE}.Release|Win32.ActiveCfg = Release|Win32
 		{34906106-21D6-490A-AE57-16C19B8A27EE}.Release|Win32.Build.0 = Release|Win32
 		{34906106-21D6-490A-AE57-16C19B8A27EE}.Release|x64.ActiveCfg = Release|Win32
+		{4526C878-3DF8-4687-A1B1-2CD3B2F51F9A}.Debug|Win32.ActiveCfg = Debug|Win32
+		{4526C878-3DF8-4687-A1B1-2CD3B2F51F9A}.Debug|Win32.Build.0 = Debug|Win32
+		{4526C878-3DF8-4687-A1B1-2CD3B2F51F9A}.Debug|x64.ActiveCfg = Debug|Win32
+		{4526C878-3DF8-4687-A1B1-2CD3B2F51F9A}.Release|Win32.ActiveCfg = Release|Win32
+		{4526C878-3DF8-4687-A1B1-2CD3B2F51F9A}.Release|Win32.Build.0 = Release|Win32
+		{4526C878-3DF8-4687-A1B1-2CD3B2F51F9A}.Release|x64.ActiveCfg = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

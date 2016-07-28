@@ -69,6 +69,39 @@ void TeleoperationGUI::doneButtonPressed() {
 		stream << QString(numTubesTemp) << "\n";
 		file.close();
 	}
+	// Write 0 to useDefaultSet.txt
+	filename = "useDefaultSet.txt";
+	TeleoperationGUI::file.setFileName(filename);
+	QString useDefaultSetBool = QString::number(0);
+	if(TeleoperationGUI::file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+		QTextStream stream(&file);
+		stream << QString(useDefaultSetBool) << "\n";
+		file.close();
+	}
+
+	// close GUI
+	this->close();
+}
+
+void TeleoperationGUI::defaultButtonPressed() {
+	// Save default number of tubes (3)
+	QString numTubesTemp = QString::number(3);
+	QString filename = "numTubesFile.txt";
+	TeleoperationGUI::file.setFileName(filename);
+	if(TeleoperationGUI::file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+		QTextStream stream(&file);
+		stream << QString(numTubesTemp) << "\n";
+		file.close();
+	}
+	// Write 1 to useDefaultSet.txt
+	filename = "useDefaultSet.txt";
+	TeleoperationGUI::file.setFileName(filename);
+	QString useDefaultSetBool = QString::number(1);
+	if(TeleoperationGUI::file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+		QTextStream stream(&file);
+		stream << QString(useDefaultSetBool) << "\n";
+		file.close();
+	}
 
 	// close GUI
 	this->close();

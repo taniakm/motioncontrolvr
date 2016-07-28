@@ -40,9 +40,27 @@ int windowPosY;
 // Kinematics Variables
 ConcentricTubeSet set;
 cThread* kinematicsThread;
-bool setInvalidated = false;
+bool setInvalidated = true;
 bool readyToStart = false;
 
+// Multithreading
+cMutex *lockObject;
+float *alpha;
+float *Beta;
+double *sVals;
+double *xPos;
+double *yPos;
+double *zPos;
+int endIndex;
+cVector3d *pos_curr;
+cVector3d *pos_des;
+cVector3d *orient_curr;
+cVector3d *orient_des;
+cVector3d *pos_error;
+
+// Teleoperation variables
+double epsilonPos = 0.001;  //trying 1 mm for now?
+double epsilonOrient = 1;
 
 //------------------------------------------------------------------------------
 // DECLARED FUNCTIONS
@@ -55,6 +73,8 @@ void close(void);											// function that closes the application
 void updateHaptics(void);									// main haptics simulation loop
 void runKinematics(void);									// to call the kinematics function
 void kinematics(ConcentricTubeSet &set);
+void drawCTR(ConcentricTubeSet set, double *s, double *x, double *y, double *z);
+void calcError(cVector3d *curr, cVector3d *des);
 //==============================================================================
 
 
@@ -217,75 +237,142 @@ void keySelect(unsigned char key, int x, int y)
 			printf("file null");
 		}
 
-		// load tube parameters
-		for(int i=0; i<tubeNum; i++) {
-			char path[150];
-			sprintf(path, "C:/Users/Tania/Documents/motioncontrolvr/src/TeleoperationGUI/tubeParameterFile%d.txt", i);
-			ConcentricTubeSet::tube t;
-
-			FILE *f = fopen(path, "rb");
-			char buf[1000];
-			fscanf(f,"%s",buf);
-			printf("%s \n",buf);
-			fclose(f);
-
-			char tempVal[10];
-			float properties[6];
-			int propertyNum = 0;
-			int ind = 0;
-			bool startFilling = false;
-			for(int j=0; j<sizeof(buf); j++) {
-				if(buf[j]==':') {
-					startFilling = true;
-				} else if(buf[j] == ',') {
-					tempVal[ind] = '\0';
-					properties[propertyNum] = std::stof(tempVal);
-					printf("%f \n",properties[propertyNum]);
-					ind = 0;
-					propertyNum++;
-					startFilling = false;
-				} else if(buf[j] == ';') {
-					startFilling = false;
-					tempVal[ind] = '\0';
-					properties[propertyNum] = std::stof(tempVal);
-					printf("%f \n",properties[propertyNum]);
-					printf("done with all \n");
-				} else if(startFilling) {
-					tempVal[ind] = buf[j];
-					ind++;
-				}
-			}
-
-			// Save values read into tube structure
-			t.OD = properties[0];
-			t.ID = properties[1];
-			t.kappa = properties[2];
-			t.Ls = properties[3];
-			t.Lc = properties[4];
-			t.materialNum = properties[5];	
-			if(t.materialNum == 0) {	// Niti
-				t.E = 50000000000;
-				t.v = 0.33;
-			} else if(t.materialNum == 1) {	// PEBA
-				t.E = 75;
-				t.v = 0.4;
-			} else if(t.materialNum == 2) { // Accura
-				t.E = 1625;
-				t.v = 0.4;
-			}
-			// Assumtions for alpha and Beta values to start (can change later if we want this as an input to the GUI)
-			t.alpha = 0;
-			if(i==2) {	// for tube 2
-				t.Beta = -0.004;
-			} else if(i==1) {
-				t.Beta = -0.01;
-			} else if(i==0) {
-				t.Beta = -0.022;
-			}
-			set.addTube(t);
+		// Check whether to use default tube set	
+		FILE *f2 = fopen("C:/Users/Tania/Documents/motioncontrolvr/src/TeleoperationGUI/useDefaultSet.txt", "rb");
+		if(f2 != NULL) {
+			int val;
+			fscanf(f2,"%i",&val);
+			fclose(f2);
+			useDefaultSetBool = val;
+			tubeNum = 3;
+			printf("Use Default Set (1=yes, 0=no): %i \n", useDefaultSetBool);
+		} else {
+			printf("file null");
 		}
+
+		if(useDefaultSetBool) {    // load default tube set
+			// Tube 0 parameters
+			ConcentricTubeSet::tube t0;
+			t0.alpha = M_PI/2;
+			t0.OD = 0.0018;
+			t0.ID = 0.0013;
+			t0.E = 50000000000;
+			t0.v = 0.33;
+			t0.kappa = 10;
+			t0.Beta = -0.13;
+			t0.Lc = 0.08;
+			t0.Ls = 0.14;
+			set.addTube(t0);
+
+			// Tube 1 parameters
+			ConcentricTubeSet::tube t1;
+			t1.alpha = -M_PI/2;
+			t1.OD = 0.0025;
+			t1.ID = 0.0020;
+			t1.E = 50000000000;
+			t1.v = 0.33;
+			t1.kappa = 10;
+			t1.Beta = -0.09;
+			t1.Lc = 0.07;
+			t1.Ls = 0.10;
+			set.addTube(t1);
+
+			// Tube 2 parameters
+			ConcentricTubeSet::tube t2;
+			t2.alpha = 0;
+			t2.OD = 0.0035;
+			t2.ID = 0.0030;
+			t2.E = 50000000000;
+			t2.v = 0.33;
+			t2.kappa = 9;
+			t2.Beta = -0.07;
+			t2.Lc = 0.05;
+			t2.Ls = 0.08;
+			set.addTube(t2);
+		} else {			// load the entered tube parameters
+			for(int i=0; i<tubeNum; i++) {
+				char path[150];
+				sprintf(path, "C:/Users/Tania/Documents/motioncontrolvr/src/TeleoperationGUI/tubeParameterFile%d.txt", i);
+				ConcentricTubeSet::tube t;
+
+				FILE *f = fopen(path, "rb");
+				char buf[1000];
+				fscanf(f,"%s",buf);
+				printf("%s \n",buf);
+				fclose(f);
+
+				char tempVal[10];
+				float properties[6];
+				int propertyNum = 0;
+				int ind = 0;
+				bool startFilling = false;
+				for(int j=0; j<sizeof(buf); j++) {
+					if(buf[j]==':') {
+						startFilling = true;
+					} else if(buf[j] == ',') {
+						tempVal[ind] = '\0';
+						properties[propertyNum] = std::stof(tempVal);
+						printf("%f \n",properties[propertyNum]);
+						ind = 0;
+						propertyNum++;
+						startFilling = false;
+					} else if(buf[j] == ';') {
+						startFilling = false;
+						tempVal[ind] = '\0';
+						properties[propertyNum] = std::stof(tempVal);
+						printf("%f \n",properties[propertyNum]);
+						printf("done with all \n");
+					} else if(startFilling) {
+						tempVal[ind] = buf[j];
+						ind++;
+					}
+				}
+
+				// Save values read into tube structure
+				t.OD = properties[0];
+				t.ID = properties[1];
+				t.kappa = properties[2];
+				t.Ls = properties[3];
+				t.Lc = properties[4];
+				t.materialNum = properties[5];	
+				if(t.materialNum == 0) {	// Niti
+					t.E = 50000000000;
+					t.v = 0.33;
+				} else if(t.materialNum == 1) {	// PEBA
+					t.E = 75;
+					t.v = 0.4;
+				} else if(t.materialNum == 2) { // Accura
+					t.E = 1625;
+					t.v = 0.4;
+				}
+				// Assumtions for alpha and Beta values to start (can change later if we want this as an input to the GUI)
+				t.alpha = 0;
+				if(i==2) {	// for tube 2
+					t.Beta = -0.004;
+				} else if(i==1) {
+					t.Beta = -0.01;
+				} else if(i==0) {
+					t.Beta = -0.022;
+				}
+				set.addTube(t);
+			}
+		}
+
 		// create a thread which starts the kinematics loop
 		kinematicsThread = new cThread();
+		kinematicsThread->start(runKinematics, CTHREAD_PRIORITY_GRAPHICS);
+
+		lockObject = new cMutex();
+		alpha = new float[tubeNum];
+		Beta = new float[tubeNum];
+		sVals = new double[1000];
+		xPos = new double[1000];
+		yPos = new double[1000];
+		zPos = new double[1000];
+
+		// testing starting motion control devices
+		//robotToControl.Init();
+
 		readyToStart = true;
 	}
 
@@ -377,10 +464,20 @@ void updateHaptics(void)
 
 
 		/////////////////////////////////////////////////////////////////////
-        // COMPUTE FORWARD KINEMATICS TO DETERMINE CURRENT TIP POS
+        // SAVE NEWEST VALUES TO COMPUTE KINEMATICS
         /////////////////////////////////////////////////////////////////////
 		if(readyToStart) {
-			//kinematicsThread->start(runKinematics, CTHREAD_PRIORITY_HAPTICS);
+			if(lockObject->tryAcquire()) {
+				if(setInvalidated) {
+					for(int i=0; i<tubeNum; i++) { 
+						alpha[i] = set.m_tubes[i].alpha;
+						Beta[i] = set.m_tubes[i].Beta;
+					}
+				} else {
+					drawCTR(set, sVals, xPos, yPos, zPos);
+				}
+				lockObject->release();
+			}
 		}
 
 	}
@@ -394,7 +491,42 @@ void updateHaptics(void)
 // Thread to compute kinematics
 //------------------------------------------------------------------------------
 void runKinematics(void) {
-	kinematics(set);	
-	setInvalidated = true;
-	printf("kinematics computed \n");
+	while(simulationRunning) {
+		if(lockObject->acquire()) {
+			// save values
+			for(int i=0; i<tubeNum; i++) {
+				set.m_tubes[i].alpha = alpha[i];
+				set.m_tubes[i].Beta = Beta[i];
+			}
+			lockObject->release();
+		}
+		
+		setInvalidated = true;
+		kinematics(set);
+		setInvalidated = false;
+		printf("kinematics computed \n");
+
+		if(lockObject->acquire()) {
+			endIndex = set.sStored.size()-1;
+			for(int i=0;i<=endIndex;i++) {
+				sVals[i] = set.sStored[i];
+				xPos[i] = set.positionStored.x[i];
+				yPos[i] = set.positionStored.y[i];
+				zPos[i] = set.positionStored.z[i];
+			}
+			lockObject->release();
+		}
+			
+	}
+}
+
+
+void drawCTR(ConcentricTubeSet set, double *s, double *x, double *y, double *z) {
+	printf("drawing \n");
+}
+
+void calcError(cVector3d *curr, cVector3d *des) {
+	/*cVector3d diff = des - curr;
+	double error = sqrt(diff.dot(diff));
+	pos_error = error;*/
 }

@@ -21,6 +21,7 @@ public:
 	private slots:
 		void addTubeButtonPressed();
 		void doneButtonPressed();
+		void defaultButtonPressed();
 
 private:
 	Ui::TeleoperationGUIClass ui;

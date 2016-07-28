@@ -43,13 +43,13 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>C:\Users\Tania\Documents\MotionControl\trunk\eigen-3.2.1\Eigen;C:\Users\Tania\Documents\motioncontrolvr\src\Core;C:\Users\Tania\Documents\MotionControl\trunk\glew-1.9.0\include;C:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\Include;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\gsl\include;C:\Users\Tania\Documents\MotionControl\trunk\eigen-3.2.1\unsupported\Eigen\src;C:\Users\Tania\Documents\motioncontrolvr\external\freeglut\include;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Tania\Documents\MotionControl\trunk\eigen-3.2.1\Eigen;C:\Users\Tania\Documents\motioncontrolvr\src\Core;C:\Users\Tania\Documents\MotionControl\trunk\glew-1.9.0\include;C:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\Include;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\gsl\include;C:\Users\Tania\Documents\MotionControl\trunk\eigen-3.2.1\unsupported\Eigen\src;C:\Users\Tania\Documents\motioncontrolvr\external\freeglut\include;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\src;C:\Users\Tania\Documents\motioncontrolvr\src\RobotControl;C:\Qt\4.8.6\include;C:\Qt\4.8.6\src\corelib\tools;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <OutputFile>../$(Platform)/$(Configuration)/$(TargetName)$(TargetExt)</OutputFile>
-      <AdditionalDependencies>Ws2_32.lib;freeglut.lib;libgsl.lib;Core.lib;chai3d.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:\Users\Tania\Documents\motioncontrolvr\src\$(Configuration);C:\Users\Tania\Documents\motioncontrolvr\external\freeglut\lib;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\gsl\lib;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\extras\freeglut\lib\$(Configuration)/$(Platform);C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\lib\$(Configuration)/$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>Ws2_32.lib;freeglut.lib;libgsl.lib;Core.lib;chai3d.lib;RobotControl.lib;qtmaind.lib;QtCored4.lib;QtGuid4.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Users\Tania\Documents\motioncontrolvr\src\$(Configuration);C:\Users\Tania\Documents\motioncontrolvr\external\freeglut\lib;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\external\gsl\lib;C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\extras\freeglut\lib\$(Configuration)/$(Platform);C:\Users\Tania\Documents\MotionControl\chai3d-3.0.0\lib\$(Configuration)/$(Platform);C:\Qt\4.8.6\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
