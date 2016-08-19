@@ -34,6 +34,7 @@ MotionController::~MotionController(void)
 	}
 	
 	m_currentState = Unknown;
+
 }
 
 /// \brief		Checks to see is COM port has already been initialized
@@ -49,17 +50,21 @@ bool MotionController::IsInitialized(void)
 ///				and then reset potion encoder to 0. Also set current limits.
 ///	\pre		comPort is a valid com port and the devices are powered up and have been connected via serial
 ///	\post		MCDC device is initialized and are ready to receive motion profile commands
-void MotionController::InitializeDevice(QString comPort)
+void MotionController::InitializeDevice(std::string comPort)
+//void MotionController::InitializeDevice(QString comPort)
 {
 	////std::string my_str = (LPCTSTR)(comPort.utf16());
 	//std::string my_str = comPort.toStdString(); 
 	//std::string th_str = "COM6";
 	// Initialize the serial port with these settings: 115200 Baud, 8 data bits, 1 stop bit and NO parity
 
-
-	if( m_serial.Init(comPort.toStdString(), 115200, 0, 1, 8) != S_OK )	
+	
+	if( m_serial.Init(comPort, 9600, 0, 1, 8) != S_OK )
+	//if( m_serial.Init(comPort.toStdString(), 9600, 0, 1, 8) != S_OK )	
 	{
-		qDebug() << "MotionController : Serial port initialization to MCDC failed | comPort:" << comPort;
+		//qDebug() << "MotionController : Serial port initialization to MCDC failed | comPort:" << comPort;
+		printf("Serial port initialization failed on comport %s \n",comPort.c_str());
+		printf("\n");
 		throw MotionControllerException("COM port failed to initialize");
 	}
 
@@ -71,6 +76,14 @@ void MotionController::InitializeDevice(QString comPort)
 
 	//Allow 'v' or 'p' chars to be sent back from the MCDC device when notification is requested
 	EnableNotification(PermitAsyncResponses);
+
+	// *** Try enabling device here ***
+	m_command = QString("%1HO%2\r").arg(DEVICE_ID,0);		// reset encoder ticks to 0
+	m_serial.Write(m_command.toStdString().c_str());
+	//m_command = QString("%1EN\r").arg(DEVICE_ID);			// enable device
+	//m_serial.Write(m_command.toStdString().c_str());
+	m_command = QString("%1EN\r").arg(QString::number(DEVICE_ID));
+	m_serial.Write( (LPCTSTR)m_command.toStdString().c_str());
 
 	m_currentState = Initialized;
 }

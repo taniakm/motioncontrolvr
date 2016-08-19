@@ -54,7 +54,8 @@ public:
 	~MotionController(void);
 
 	bool IsInitialized(void);
-	void InitializeDevice(QString comPort);
+	//void InitializeDevice(QString comPort);
+	void InitializeDevice(std::string comPort);
 	void EnableDevice(void);
 	void ResetEncoder(long newValue = 0);
 	void LockMotor(bool lock=true);
@@ -88,6 +89,9 @@ public:
 
 	void HomingSequence(void);
 	void setDigitalOutput(bool);
+
+
+
 
 private:
 	//Private Members:

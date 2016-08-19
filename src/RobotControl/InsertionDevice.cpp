@@ -19,6 +19,8 @@ MotionController(params.deviceID),
 	}
 
 	m_created = true;
+
+	devParams = params;
 }
 
 /// \brief		Destructor: Stops motion if there happens to be any	
@@ -32,8 +34,11 @@ InsertionDevice::~InsertionDevice(void)
 /// \brief		Initialize MCDC with comPort param and set limits of MCDC
 ///	\pre		comPort is a valid port number and the roll device is connected to that port
 ///	\post		The com port is initialized and limits are set
-void InsertionDevice::Init(QString comPort, DeviceParams params)
+void InsertionDevice::Init(std::string comPort, DeviceParams params)
+//void InsertionDevice::Init(QString comPort, DeviceParams params)
 {
+	/*motionContInsert = new MotionController(params.deviceID);
+	motionContInsert->InitializeDevice(comPort);*/
 	MotionController::InitializeDevice(comPort);
 	MotionController::SetCorridorValue(params.deviceCorridor);
 }

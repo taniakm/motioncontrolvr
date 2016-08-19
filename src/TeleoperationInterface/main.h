@@ -7,6 +7,6 @@
 int tubeNum;
 int useDefaultSetBool;
 
-CTRControl robotToControl;
+CTRControl robot;
 
 

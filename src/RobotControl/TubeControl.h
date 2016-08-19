@@ -11,8 +11,10 @@ public:
 
 	InsertionDevice *transController;
 	RollDevice *rotController;
+	InsertionDevice *transController2;
 
-	void Init(QString comPort_insertDev, DeviceParams params_insertDev, QString comPort_rollDev, DeviceParams params_rollDev);
+	//void Init(QString comPort_insertDev, DeviceParams params_insertDev, QString comPort_rollDev, DeviceParams params_rollDev);
+	void Init(std::string comPort_insertDev, DeviceParams params_insertDev, std::string comPort_rollDev, DeviceParams params_rollDev);
 
 };
 

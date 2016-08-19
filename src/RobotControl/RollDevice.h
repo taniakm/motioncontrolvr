@@ -18,14 +18,18 @@ public:
 	//RollDevice(void);
 	RollDevice(DeviceParams params);
 	~RollDevice(void);
-	void Init(QString comPort, DeviceParams params);
+	void Init(std::string comPort, DeviceParams params);
+	//void Init(QString comPort, DeviceParams params);
 	void ReEnable(DeviceParams params);
 	int ConvertAngleToPosition(float angle, DeviceParams params);
 	float ConvertPositionToAngle(long position, DeviceParams params);
 	float GetAngle(DeviceParams params);	
 	void SetDefaultVelocity(DeviceParams params);
 	void setVibration(bool);
-	
+
+	DeviceParams devParams;
+	//MotionController *motionContDev;
+
 private:	//Methods
 	void SetLimits(DeviceParams params);
 

@@ -4,15 +4,15 @@
 // ------------- Hardware specific parameters -------------
 static DeviceParams g_deviceParams[] = {
 	//deviceID		//deviceCorridor	//micromoTicksPerRev	//spurGearRatio		//mmPerRev		//minLimit		//maxLimit		//currentLimit		//maxVelocity
-	{1,				20,					11836.92,				1,					37.7,			-300000,		300000,			2,					2},
-	{2,				20,					11836.92,				1,					1,				-300000,		300000,			2,					2},
-	{3,				20,					11836.92,				1,					66.0,			-300000,		300000,			2,					2},
-	{4,				20,					11836.92,				1,					1,				-300000,		300000,			2,					2},
-	{5,				20,					11836.92,				0.88,				77.85,			-300000,		300000,			2,					2},
-	{6,				20,					11836.92,				1,					1,				-300000,		300000,			2,					2},
+	{0,				20,					11836.92,				1,					37.7,			-300000,		300000,			2,					2000},
+	{0,				20,					11836.92,				1,					1.0,			-300000,		300000,			2,					2000},
+	{0,				20,					11836.92,				1,					66.0,			-300000,		300000,			2,					2000},
+	{0,				20,					11836.92,				1,					1,				-300000,		300000,			2,					2000},
+	{0,				20,					11836.92,				0.88,				77.85,			-300000,		300000,			2,					2000},
+	{0,				20,					11836.92,				0.88,				1,				-300000,		300000,			2,					2000},
 };
 
-static QString g_comPorts[] = {1,2,3,4,5,6};
+static std::string g_comPorts[] = {"\\\\.\\COM44", "\\\\.\\COM45", "\\\\.\\COM46", "\\\\.\\COM47", "\\\\.\\COM48", "\\\\.\\COM49"};
 // -------------------------------------------------------
 
 
@@ -26,10 +26,11 @@ CTRControl::~CTRControl(void)
 }
 
 
-void Init() {
-	CTRControl robot;
+void CTRControl::Init() {
 	for(int i=0; i<NUM_TUBES; i++) {
-		robot.m_tubeControllers[i].Init(g_comPorts[2*i],g_deviceParams[2*i],g_comPorts[2*i+1],g_deviceParams[2*i+1]);
+		this->m_tubeControllers[i].Init(g_comPorts[2*i],g_deviceParams[2*i],g_comPorts[2*i+1],g_deviceParams[2*i+1]);
 	}
+	//this->m_tubeControllers[0].Init(g_comPorts[0],g_deviceParams[0],g_comPorts[1],g_deviceParams[1]);
+	//this->m_tubeControllers[0].Init(g_comPorts[1],g_deviceParams[1],g_comPorts[0],g_deviceParams[0]);
 }
 

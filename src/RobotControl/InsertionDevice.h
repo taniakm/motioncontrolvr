@@ -18,13 +18,17 @@ public:
 	//InsertionDevice(void);
 	InsertionDevice(DeviceParams params);
 	~InsertionDevice(void);
-	void Init(QString comPort, DeviceParams params);
+	void Init(std::string comPort, DeviceParams params);
+	//void Init(QString comPort, DeviceParams params);
 	void ReEnable(DeviceParams params);
 	int ConvertMMToPosition(float angle, DeviceParams params);
 	float ConvertPositionToMM(long position, DeviceParams params);
 	float GetMM(DeviceParams params);	
 	void SetDefaultVelocity(DeviceParams params);
 	//float GetPitch(void);
+
+	DeviceParams devParams;
+	//MotionController *motionContInsert;
 	
 private:	//Methods
 	void SetLimits(DeviceParams params);

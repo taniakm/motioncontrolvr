@@ -20,6 +20,7 @@ m_isRollerLocked(false)
 
 	m_created = true;
 	
+	devParams = params;
 }
 
 /// \brief		Destructor: Stops motion if there happens to be any	
@@ -33,12 +34,16 @@ RollDevice::~RollDevice(void)
 /// \brief		Initialize MCDC with comPort param and set limits of MCDC
 ///	\pre		comPort is a valid port number and the roll device is connected to that port
 ///	\post		The com port is initialized and limits are set
-void RollDevice::Init(QString comPort, DeviceParams params)
+void RollDevice::Init(std::string comPort, DeviceParams params)
+//void RollDevice::Init(QString comPort, DeviceParams params)
 {
+	/*motionContDev = new MotionController(params.deviceID);
+	motionContDev->InitializeDevice(comPort);*/
+	
 	MotionController::InitializeDevice(comPort);
 	MotionController::SetCorridorValue(params.deviceCorridor);
-	MotionController::ClearExistingData();
-	//SetDefaultVelocity();
+	//MotionController::ClearExistingData();
+
 }
 
 /// \brief		Re-enable roll device motor 
@@ -57,9 +62,9 @@ void RollDevice::ReEnable(DeviceParams params)
 void RollDevice::SetLimits(DeviceParams params)
 {
 	SetPeakCurrentLimit(params.currentLimit);
-	SetPositionLimits( ConvertAngleToPosition(params.minLimit, params),
-		ConvertAngleToPosition(params.maxLimit, params) );
-	EnablePositionLimits(true);
+	//SetPositionLimits( ConvertAngleToPosition(params.minLimit, params),
+	//	ConvertAngleToPosition(params.maxLimit, params) );
+	//EnablePositionLimits(true);
 }
 
 /// \brief		Change max travelling velocity back to default value
@@ -82,7 +87,7 @@ int RollDevice::ConvertAngleToPosition(float angle, DeviceParams params)
 /// \post		The angle (in degrees) is returned 
 float RollDevice::ConvertPositionToAngle(long position, DeviceParams params)
 {
-	float angle = ( (float)position * 360.0 ) / ( (float)params.micromoTicksPerRev * (float)params.spurGearRatio);
+	float angle = ( (float)position * 360.0 ) / ( params.micromoTicksPerRev * params.spurGearRatio);
 	return angle;
 }
 

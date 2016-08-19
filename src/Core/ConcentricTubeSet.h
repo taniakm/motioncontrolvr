@@ -174,6 +174,7 @@ public:
     gsl_matrix* Eu;
     gsl_matrix* Bu;
 	gsl_matrix* Jb;
+	Eigen::MatrixXf Jpseudo;
 
 	// Functions
 	void addTube(tube t);
