@@ -27,6 +27,7 @@ cToolCursor* tool;						// tool
 double	toolRadius = 0.01;				// radius of cursor
 bool simulationRunning = false;			// flag to indicate if the haptic simulation currently running
 bool simulationFinished = true;			// flag to indicate if the haptic simulation has terminated
+bool clutchPressed = false;
 
 // information about computer screen and GLUT display window
 int screenW;
@@ -58,12 +59,12 @@ double *yPos;
 double *zPos;
 int endIndex;
 cVector3d *pos_curr;
-cVector3d pos_des = cVector3d(0,0,0);
+cVector3d pos_des = cVector3d(0.005,0.03,0.14);
 cVector3d posDot_des;
 Eigen::MatrixXf qDot_des(6,1);			// change depending on tube num (TubeNum,1) 
 Eigen::VectorXf xDot_des(3);
 Eigen::VectorXf q(6);
-Eigen::VectorXf qLast(6);
+Eigen::VectorXf qPrev(6);
 cVector3d *orient_curr;
 cVector3d *orient_des;
 double pos_error;
@@ -73,7 +74,7 @@ cVector3d *devPos;
 cVector3d *lastDevPos;
 
 // Teleoperation variables
-double epsilonPos = 0.001;  //trying 1 mm for now?
+double epsilonPos = 0.003;  //trying 1 mm for now?
 double epsilonOrient = 1;
 double vMax = .01;
 double vMin = 0.0005;
@@ -81,6 +82,7 @@ double lambdaPos = 4;
 float deltaT = 2.0;						// assumed amount of time that speed was applied
 float offsetBeta[NUM_TUBES];
 float offsetAlpha[NUM_TUBES];
+cVector3d currTipPos;
 // Clamping values for alpha and Beta (to prevent NAN)
 float alphaMin = -M_PI;
 float alphaMax = M_PI;
@@ -92,6 +94,12 @@ float deltaPos_des[NUM_TUBES];
 float deltaRot_des[NUM_TUBES];
 float Beta_des[NUM_TUBES];
 float alpha_des[NUM_TUBES];
+
+// for debugging
+bool firstTime = true;
+Eigen::MatrixXf JpseudoHardCode(6,6);
+Eigen::MatrixXf JHardCode(6,6);
+bool hardCode = true;
 
 //------------------------------------------------------------------------------
 // DECLARED FUNCTIONS
@@ -109,6 +117,7 @@ void calcError(cVector3d curr, cVector3d des);
 void controlRobotPos(CTRControl robot, float deltaPos_des[NUM_TUBES], float deltaRot_des[NUM_TUBES]);
 Eigen::MatrixXf getJpseudoPos(Eigen::MatrixXf Jpseudo);		// get just the position part of Jpseudo
 void updatePos(ConcentricTubeSet &set);	
+void updatePosHardCode(ConcentricTubeSet &set);
 //==============================================================================
 
 
@@ -191,6 +200,8 @@ int main(int argc, char* argv[])
 	tipSphere = new cShapeSphere(0.01);
 	world->addChild(tipSphere);
 	tipSphere->m_material->setBlueAqua();
+	tipSphere->setShowFrame(true);
+	tipSphere->setFrameSize(0.05);
 	// Create a sphere to be the parent of the backbone spheres
 	CTRParentSphere = new cShapeSphere(0.01);
 	world->addChild(CTRParentSphere);
@@ -302,41 +313,41 @@ void keySelect(unsigned char key, int x, int y)
 		if(useDefaultSetBool) {    // load default tube set
 			// Tube 0 parameters
 			ConcentricTubeSet::tube t0;
-			t0.alpha = M_PI/2;
-			t0.OD = 0.0018;
-			t0.ID = 0.0013;
+			t0.alpha = 0; //M_PI/2;
+			t0.OD = 0.001514; //0.0018;
+			t0.ID = 0.000902; //0.0013;
 			t0.E = 50000000000;
 			t0.v = 0.33;
-			t0.kappa = 10;
-			t0.Beta = -0.13;
-			t0.Lc = 0.08;
-			t0.Ls = 0.14;
+			t0.kappa = -23.2558; //10;
+			t0.Beta = -0.203; //-0.13;
+			t0.Lc = 0.038; //0.08;
+			t0.Ls = 0.268; //0.14;
 			set.addTube(t0);
 
 			// Tube 1 parameters
 			ConcentricTubeSet::tube t1;
-			t1.alpha = -M_PI/2;
-			t1.OD = 0.0025;
-			t1.ID = 0.0020;
+			t1.alpha = 0; //-M_PI/2;
+			t1.OD = 0.002543; //0.0025;
+			t1.ID = 0.001829; //0.0020;
 			t1.E = 50000000000;
 			t1.v = 0.33;
-			t1.kappa = 10;
-			t1.Beta = -0.09;
-			t1.Lc = 0.07;
-			t1.Ls = 0.10;
+			t1.kappa = -5.9524; //10;
+			t1.Beta = -0.097; //-0.09;
+			t1.Lc = 0.042; //0.07;
+			t1.Ls = 0.137; //0.10;
 			set.addTube(t1);
 
 			// Tube 2 parameters
 			ConcentricTubeSet::tube t2;
 			t2.alpha = 0;
-			t2.OD = 0.0035;
-			t2.ID = 0.0030;
+			t2.OD = 0.003226; //0.0035;
+			t2.ID = 0.002896; //0.0030;
 			t2.E = 50000000000;
 			t2.v = 0.33;
-			t2.kappa = 9;
-			t2.Beta = -0.07;
+			t2.kappa = -6.1728; //9;
+			t2.Beta = -0.038; //-0.07;
 			t2.Lc = 0.05;
-			t2.Ls = 0.08;
+			t2.Ls = 0.05; //0.08;
 			set.addTube(t2);
 		} else {			// load the entered tube parameters
 			for(int i=0; i<tubeNum; i++) {
@@ -430,9 +441,35 @@ void keySelect(unsigned char key, int x, int y)
 			Beta[i] = set.m_tubes[i].Beta;
 			offsetAlpha[i] = set.m_tubes[i].alpha;
 			offsetBeta[i] = set.m_tubes[i].Beta;
+			// set initial q values
+			qPrev(i) = set.m_tubes[i].alpha;			
+			qPrev(i+tubeNum) = set.m_tubes[i].Beta;
+			q(i) = qPrev(i);
+			q(i+tubeNum) = qPrev(i+tubeNum);
 		}
 		// Initialize delta_des
 		delta_des.zero();
+
+		// for debugging
+		if(hardCode) {
+			// set J
+			JHardCode << -0.003993, -0.007946, -0.010319, 0.0, 0.0, 0.0,
+						0.0, 0.0, 0.0, -0.104859, -0.437415, -0.214496,
+						0.0, 0.0, 0.0, 0.957421, -0.150511, -0.153253,
+						0.0, 0.0, 0.0, -20.222355, 17.537556, 2.68528,
+						-0.30416, -0.316079, -0.136531, 0.0, 0.0, 0.0,
+						0.496501, 0.244926, -0.087747, 0.0, 0.0, 0.0;
+			// set Jpseudo
+			JpseudoHardCode << -0.996418, 0.0, 0.0, 0.0, 0.62817, 1.997,
+								1.52232, 0.0, 0.0, 0.0, -2.40524, -0.86005,
+								-1.65457, 0.0, 0.0, 0.0, -3.02309, -2.37023,
+								0.0, -0.665727, 0.755361, -0.0101856, 0.0, 0.0,
+								0.0, -0.167568, 1.33665, 0.0642079, 0.0, 0.0,
+								0.0, -3.91928, -3.04137, -0.123655, 0.0, 0.0; 
+			// set tip pos
+			currTipPos.set(0.0, 0.022257, 0.097838);
+			readyToStart = true;
+		}
 
 		// testing starting motion control devices
 		robot.Init();
@@ -486,8 +523,9 @@ void keySelect(unsigned char key, int x, int y)
 
 	// Try setting desired delta for tip to move
 	if(key=='d') {
-		//delta_des.set(0.002, 0.001, 0.002);
-		pos_des.set(xPos[endIndex]+.001,yPos[endIndex]+.001,zPos[endIndex]+.002);
+		delta_des.set(0.005, 0.01, 0.012);
+		pos_des.add(delta_des(0),delta_des(1),delta_des(2));
+		//pos_des.set(xPos[endIndex]+.001,yPos[endIndex]+.001,zPos[endIndex]+.002);
 	}
 
 }
@@ -565,9 +603,21 @@ void updateHaptics(void)
 		if(readyToStart) {
 			devPos->set(position(0),position(1),position(2));
 		}
-		//read rotation
+		// read rotation
         cMatrix3d rotation;
         hapticDevice->getRotation(rotation);
+
+		// check buttons
+		bool button0;
+		hapticDevice->getUserSwitch(0, button0);
+		if(button0) {
+			clutchPressed = true;
+			cPhantomDeviceWithClutch *hDevice = (cPhantomDeviceWithClutch *)hapticDevice.get();
+			hDevice->clutchPressed();
+		} else if(!button0 && clutchPressed) {
+			cPhantomDeviceWithClutch *hDevice = (cPhantomDeviceWithClutch *)hapticDevice.get();
+			hDevice->releaseClutch();
+		}
 
         /////////////////////////////////////////////////////////////////////
         // UPDATE 3D CURSOR MODEL
@@ -575,11 +625,6 @@ void updateHaptics(void)
 		// update position and orientation of cursor
 		cursor->setLocalPos(position);
 		cursor->setLocalRot(rotation);
-
-		/////////////////////////////////////////////////////////////////////
-        // UPDATE MOTION CONTROLLERS
-        /////////////////////////////////////////////////////////////////////	
-		//controlRobotPos(robot, deltaPos_des, deltaRot_des);
 
 		/////////////////////////////////////////////////////////////////////
         // SAVE NEWEST VALUES TO COMPUTE KINEMATICS
@@ -594,24 +639,27 @@ void updateHaptics(void)
 						//devPos->set(position(0),position(1),position(2));
 					}
 				} else {
+					//updatePosHardCode(set);		// for DEBUGGNG
 					updatePos(set);
 					/////////////////////////////////////////////////////////////////////
-					// UPDATE 
+					// UPDATE MOTION CONTROLLERS
 					/////////////////////////////////////////////////////////////////////
 					for(int i=0; i<tubeNum; i++) {
-						Beta_des[i] = Beta[i]-offsetBeta[i];
+						Beta_des[i] = (Beta[i]-offsetBeta[i])*1000;				// convert to MM
 						alpha_des[i] = (alpha[i]-offsetAlpha[i])*180.0/M_PI;
 					}
 					printf("--------------------------------------------------- \n");
-					printf("BetaDes: %f %f %f \n",Beta_des[0]*1000,Beta_des[1]*1000,Beta_des[2]*1000);
+					printf("BetaDes: %f %f %f \n",Beta_des[0],Beta_des[1],Beta_des[2]);
 					printf("AlphaDes: %f %f %f \n",alpha_des[0],alpha_des[1],alpha_des[2]);
 					printf("--------------------------------------------------- \n");
 					//controlRobotPos(robot, Beta_des, alpha_des);
 
 
 
-					drawCTR(set, sVals, xPos, yPos, zPos);
-					//lastDevPos->set(devPos->x(),devPos->y(),devPos->z());
+					//drawCTR(set, sVals, xPos, yPos, zPos);
+					
+					tipSphere->setLocalPos(currTipPos(0),currTipPos(1),currTipPos(2));
+
 				}
 				lockObject->release();
 			}
@@ -627,6 +675,9 @@ void updateHaptics(void)
 	
 }
 
+//------------------------------------------------------------------------------
+// Update information on desired position to calculate new alpha & beta values
+//------------------------------------------------------------------------------
 void updatePos(ConcentricTubeSet &set) {
 	endIndex = set.sStored.size()-1;
 	for(int i=0;i<=endIndex;i++) {
@@ -636,16 +687,17 @@ void updatePos(ConcentricTubeSet &set) {
 		zPos[i] = set.positionStored.z[i];
 	}
 
-	// Compute difference btwn current and desired tip positions
-	cVector3d currTipPos;	
+	// Compute difference btwn current and desired tip positions	
 	currTipPos.set(xPos[endIndex],yPos[endIndex],zPos[endIndex]);				// define current position of tip
 			
-	// ***** try using omni pos as RELATIVE pos ****
-	devPos->subr(lastDevPos->x(),lastDevPos->y(),lastDevPos->z(),delta_des);
-	currTipPos.addr(delta_des(0),delta_des(1),delta_des(2),pos_des);
-	// *********************************************
-	// set last dev pos to current dev pos
-	lastDevPos->set(devPos->x(),devPos->y(),devPos->z());
+	//// ***** try using omni pos as RELATIVE pos ****
+	//devPos->subr(lastDevPos->x(),lastDevPos->y(),lastDevPos->z(),delta_des);
+	//currTipPos.addr(delta_des(0),delta_des(1),delta_des(2),pos_des);
+	//// *********************************************
+	//// set last dev pos to current dev pos
+	//lastDevPos->set(devPos->x(),devPos->y(),devPos->z());
+
+
 
 	printf("pos_des: %f %f %f \n", pos_des(0),pos_des(1),pos_des(2));
 	printf("pos_cur: %f %f %f \n", xPos[endIndex],yPos[endIndex],zPos[endIndex]);
@@ -672,10 +724,80 @@ void updatePos(ConcentricTubeSet &set) {
 	qDot_des = JpseudoPos*xDot_des;
 	// Calculate new actuator values 
 	for(int i=0; i<tubeNum; i++) {
-		qLast(i) = set.m_tubes[i].alpha;			// ***** or should this be alpha[i] and Beta[i] ???
-		qLast(i+tubeNum) = set.m_tubes[i].Beta;
+		qPrev(i) = set.m_tubes[i].alpha;			// ***** or should this be alpha[i] and Beta[i] ???
+		qPrev(i+tubeNum) = set.m_tubes[i].Beta;
 	}
-	q = qLast + qDot_des*deltaT;
+	q = qPrev + qDot_des*deltaT;
+	// Convert q to alpha and Beta
+	for(int i=(tubeNum-1); i>-1; i--) {
+		// check to make sure alpha value is within range
+		if(q(i)>alphaMax) {
+			alpha[i] = alphaMax;
+		} else if(q(i)<alphaMin) {
+			alpha[i] = alphaMin;
+		} else {
+			alpha[i] = q(i);
+		}
+
+		// check to make sure Beta value is within range		
+		if(i==(tubeNum-1)) {
+			BetaMin = -0.002;
+		} else {
+			BetaMin = Beta[i+1]+BetaDeltaMin;
+		}
+		if(q(i+tubeNum)>BetaMin) {
+			Beta[i] = BetaMin;
+		} else if(q(i+tubeNum)<(-(set.m_tubes[i].Ls + set.m_tubes[i].Lc))) {
+			Beta[i] = -(set.m_tubes[i].Ls + set.m_tubes[i].Lc) + 0.001;
+		}else {
+			Beta[i] = q(i+tubeNum);
+		}
+	}
+
+}
+
+void updatePosHardCode(ConcentricTubeSet &set) {
+	// calculate delta x based on hard coded jacobian
+	Eigen::VectorXf qDelta(6);
+	qDelta = q - qPrev;
+	Eigen::VectorXf xDelta(6);
+	xDelta = JHardCode*qDelta;
+	currTipPos.set(currTipPos(0)+xDelta(0),currTipPos(1)+xDelta(1),currTipPos(2)+xDelta(2));
+
+	// Compute difference btwn current and desired tip positions			
+	// find desired position based on current position and delta pos desired
+	//currTipPos.addr(delta_des(0),delta_des(1),delta_des(2),pos_des);
+	// set desired delta to 0 for next time
+	//delta_des.zero();
+
+	printf("pos_des: %f %f %f \n", pos_des(0),pos_des(1),pos_des(2));
+	printf("pos_cur: %f %f %f \n", currTipPos(0),currTipPos(1),currTipPos(2));
+	calcError(currTipPos,pos_des);												// calculate diff btwn curr and des pos
+
+	// try drawing line from curr tip pos to des tip pos
+	desDirLine->m_pointA.set(currTipPos(0),currTipPos(1),currTipPos(2));
+	desDirLine->m_pointB.set(pos_des(0),pos_des(1),pos_des(2));
+
+	// Calculate desired linear velocity
+	double v;
+	if((pos_error/epsilonPos)>lambdaPos) {
+		v = vMax;
+	} else {
+		v = (vMax-vMin)/(epsilonPos*(lambdaPos-1))*(pos_error-epsilonPos);
+	}
+	posDot_des = v*nHat;
+	// Calculate desired tip velocity
+	for(int i=0; i<3; i++) {
+		xDot_des(i) = posDot_des(i);	// Convert cVector3d to Eigen::VectorXf (in this case length 3 bc no orientation control yet)
+	}
+	Eigen::MatrixXf JpseudoPos = getJpseudoPos(JpseudoHardCode);	// get just position part of Jpseudo
+	qDot_des = JpseudoPos*xDot_des;
+	// Calculate new actuator values 
+	for(int i=0; i<tubeNum; i++) {
+		qPrev(i) = set.m_tubes[i].alpha;			// ***** or should this be alpha[i] and Beta[i] ???
+		qPrev(i+tubeNum) = set.m_tubes[i].Beta;
+	}
+	q = qPrev + qDot_des*deltaT;
 	// Convert q to alpha and Beta
 	for(int i=0; i<tubeNum; i++) {
 		// check to make sure alpha value is within range
@@ -695,10 +817,7 @@ void updatePos(ConcentricTubeSet &set) {
 			Beta[i] = q(i+tubeNum);
 		}
 	}
-
 }
-
-
 //------------------------------------------------------------------------------
 // Thread to compute kinematics
 //------------------------------------------------------------------------------
@@ -717,9 +836,15 @@ void runKinematics(void) {
 		kinematics(set);
 		setInvalidated = false;
 		printf("kinematics computed \n");
+		
+		if(firstTime) {
+			firstTime = false;
+			int endInd = set.sStored.size()-1;
+			printf("x: %f  y: %f  z: %f \n", set.positionStored.x[endInd],set.positionStored.y[endInd],set.positionStored.z[endInd]);
+		}
 
 		// **** not sure where to put this??? ******
-		readyToStart = true;
+		//readyToStart = true;
 		// *****************************************
 
 
@@ -805,13 +930,13 @@ void drawCTR(ConcentricTubeSet set, double *s, double *x, double *y, double *z) 
 
 
 	// try drawing backbone too
-	CTRParentSphere->deleteAllChildren();
-	for(int i=0; i<endIndex; i++) {
-		backboneSphere[i] = new cShapeSphere(0.005);
-		CTRParentSphere->addChild(backboneSphere[i]);
-		backboneSphere[i]->m_material->setBlue();
-		backboneSphere[i]->setLocalPos(x[i],y[i],z[i]);
-	}
+	//CTRParentSphere->deleteAllChildren();
+	//for(int i=0; i<endIndex; i++) {
+	//	backboneSphere[i] = new cShapeSphere(0.005);
+	//	CTRParentSphere->addChild(backboneSphere[i]);
+	//	backboneSphere[i]->m_material->setBlue();
+	//	backboneSphere[i]->setLocalPos(x[i],y[i],z[i]);
+	//}
 	
 	
 
