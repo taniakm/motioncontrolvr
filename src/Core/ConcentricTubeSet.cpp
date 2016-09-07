@@ -12,7 +12,7 @@ using namespace std;
 int numTubes;
 int numStates;
 float *solvedState;
-float p = 0.001;		// for finding pseudo inverse
+float p = 0.0;		// for finding pseudo inverse
 
 
 
@@ -29,7 +29,8 @@ int solveInitConditions(ConcentricTubeSet &set);
 int solveForwardKinematics(ConcentricTubeSet &set);
 gsl_matrix* computeG(ConcentricTubeSet &set);
 gsl_matrix* computeGInv(gsl_matrix * gBar);
-Eigen::MatrixXf computeJpseudo(ConcentricTubeSet &set, gsl_matrix *J);
+Eigen::MatrixXf computeJpseudo(ConcentricTubeSet &set, Eigen::MatrixXf J);
+Eigen::MatrixXf computeJpseudoPos(ConcentricTubeSet &set, Eigen::MatrixXf J);
 void computeEq(ConcentricTubeSet &set, gsl_vector* q, gsl_vector* uBar);
 void computeEu(ConcentricTubeSet &set, gsl_vector* q, gsl_vector* uBar);
 void printComputedKinematics(ConcentricTubeSet set);
@@ -354,6 +355,11 @@ void kinematics(ConcentricTubeSet &set)
 	set.Jb = gsl_matrix_alloc(6,2*numTubes);
 	//set.Jpseudo = gsl_matrix_alloc(6,2*numTubes);
 	set.Jpseudo.resize(6,6);
+	Eigen::MatrixXf T1(6,6);
+	T1 = Eigen::MatrixXf::Zero(6,6);
+	set.JbEig.resize(6,6);
+	set.JhPos.resize(3,6);
+	set.JpseudoPos.resize(6,3);
 
 	// initially assume that set is valid
 	set.isValidSet = true;
@@ -420,9 +426,33 @@ void kinematics(ConcentricTubeSet &set)
     printf("%f \t %f \t %f \t %f \t %f \t %f \n", gsl_matrix_get(set.Jb,4,0),gsl_matrix_get(set.Jb,4,1),gsl_matrix_get(set.Jb,4,2),gsl_matrix_get(set.Jb,4,3),gsl_matrix_get(set.Jb,4,4),gsl_matrix_get(set.Jb,4,5));
     printf("%f \t %f \t %f \t %f \t %f \t %f \n", gsl_matrix_get(set.Jb,5,0),gsl_matrix_get(set.Jb,5,1),gsl_matrix_get(set.Jb,5,2),gsl_matrix_get(set.Jb,5,3),gsl_matrix_get(set.Jb,5,4),gsl_matrix_get(set.Jb,5,5));
     */
+	//Eigen::MatrixXf JbEig = convertGSLMatrixToEigen(set.Jb);
+	set.JbEig = convertGSLMatrixToEigen(set.Jb);
+	T1.block(0,0,3,3) << set.R1(0,0), set.R1(0,1), set.R1(0,2), 
+						 set.R1(1,0), set.R1(1,1), set.R1(1,2),
+						 set.R1(2,0), set.R1(2,1), set.R1(2,2);
+	T1.block(3,3,3,3) << set.R1(0,0), set.R1(0,1), set.R1(0,2), 
+						 set.R1(1,0), set.R1(1,1), set.R1(1,2),
+						 set.R1(2,0), set.R1(2,1), set.R1(2,2);
+	set.Jh = T1*set.JbEig;
+	// Get position component of jacobian only
+	for(int i=0; i<3; i++) {
+		for(int j=0; j<(set.Jh.cols()); j++) {
+			set.JhPos(i,j) = set.Jh(i,j);
+		}
+	}
+	//std::cout << set.JhPos << endl;
 	// Compute pseudo inverse for teleoperation
-	set.Jpseudo = computeJpseudo(set, set.Jb);
+	//set.Jpseudo = computeJpseudo(set, set.Jh);
+	set.JpseudoPos = computeJpseudoPos(set,set.JhPos);
 
+	//// for debugging
+	//Eigen::MatrixXf BuEig = convertGSLMatrixToEigen(set.Bu);
+	//float BuDet = BuEig.determinant();
+	//printf("det(Bu): %f \n", BuDet);
+	//if(BuDet==0) {
+	//	printf("singular \n");
+	//}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -514,7 +544,7 @@ int solveForwardKinematics(ConcentricTubeSet &set)
 
 	gsl_odeiv_system sys = {kinematicFunction, jac, numStates, &set};				// set up system
 	double s = sVec[0], s1 = sVec[1];
-    double h = 1.0e-6; //5e-4;
+    double h = 1.0e-4; //1.0e-6; 
 	double *y; double *y_err;
 	y_err = new double[numStates];
 	y = new double[numStates];
@@ -763,9 +793,9 @@ int solveInitConditions(ConcentricTubeSet &set) {
 
 
 
-	printf("x0: %f \n", xvec(0));
+	/*printf("x0: %f \n", xvec(0));
 	printf("x1: %f \n", xvec(1));
-	printf("x2: %f \n", xvec(2));
+	printf("x2: %f \n", xvec(2));*/
 
 
 	// Set initial moment as solved value
@@ -860,7 +890,7 @@ int findZeroResVec (const gsl_vector * x, void *params, gsl_vector * f)
 
 	gsl_odeiv_system sys = {kinematicFunction, jac, numStates, &set};		// set up system
 	double s = sVec[0], s1 = sVec[1];
-    double h = 1.0e-5;//10e-4; //5e-4;												//**** trade-off between speed and accuracy... ****************
+    double h = 1.0e-4; //1.0e-5;												//**** trade-off between speed and accuracy... ****************
 	double *y; double *y_err;
 	y_err = new double[numStates];
 	y = new double[numStates];
@@ -1093,12 +1123,15 @@ gsl_matrix* computeG(ConcentricTubeSet &set) {
     cVector3d tipPos = cVector3d(set.positionStored.x[numPts-1], set.positionStored.y[numPts-1], set.positionStored.z[numPts-1]);
     
     gsl_matrix* g = gsl_matrix_alloc(4,4);
+	gsl_matrix* Rtemp = gsl_matrix_alloc(3,3);
     // set rotation part of matrix
     for(int i=0; i<3; i++) {
         for(int j=0; j<3; j++) {
 			gsl_matrix_set(g,i,j,Rzi_tube1.getRow(i)(j));
+			gsl_matrix_set(Rtemp,i,j,Rzi_tube1.getRow(i)(j));
         }
     }
+	set.R1 = convertGSLMatrixToEigen(Rtemp);	// convert Rtemp from gsl matrix to eigen::matrixxf (to use for Jh)
     // set translation part of matrix
     gsl_matrix_set(g,0,3,tipPos(0));
     gsl_matrix_set(g,1,3,tipPos(1));
@@ -1156,14 +1189,13 @@ gsl_matrix* computeGInv(gsl_matrix * gBar) {
 }
 
 
-Eigen::MatrixXf computeJpseudo(ConcentricTubeSet &set, gsl_matrix *J) {
-	Eigen::MatrixXf JEig(6,6);
+Eigen::MatrixXf computeJpseudo(ConcentricTubeSet &set, Eigen::MatrixXf JEig) {
 	Eigen::MatrixXf JTEig(6,6);
 	Eigen::MatrixXf IEig(6,6);
 	Eigen::MatrixXf JJTEig(6,6);
 	Eigen::MatrixXf JInvTemp(6,6);
 
-	JEig = convertGSLMatrixToEigen(J);
+	//JEig = convertGSLMatrixToEigen(J);
 	JTEig = JEig.transpose();
 	// for debugging
 	/*std::cout << "JEig:\n" << JEig << endl;
@@ -1188,6 +1220,38 @@ Eigen::MatrixXf computeJpseudo(ConcentricTubeSet &set, gsl_matrix *J) {
 	/*std::cout << "Jpseudo:\n" << JInvTemp << endl;*/
 	return JInvTemp;
 }
+
+Eigen::MatrixXf computeJpseudoPos(ConcentricTubeSet &set, Eigen::MatrixXf JEig) {
+	Eigen::MatrixXf JTEig(6,3);
+	Eigen::MatrixXf IEig(3,3);
+	Eigen::MatrixXf JJTEig(3,3);
+	Eigen::MatrixXf JInvTemp(3,3);
+	Eigen::MatrixXf JPseud(6,3);
+
+	//JEig = convertGSLMatrixToEigen(J);
+	JTEig = JEig.transpose();
+	// for debugging
+	/*std::cout << "JEig:\n" << JEig << endl;
+	std::cout << "JT: \n" << JTEig << endl;*/
+	JJTEig = JEig*JTEig;
+	IEig << 1, 0, 0,
+		    0, 1, 0, 
+			0, 0, 1;
+	IEig = p*IEig;
+	JInvTemp = JJTEig + IEig;
+	JInvTemp = JInvTemp.inverse();
+	//std::cout << "JInvTemp: \n" << JInvTemp << endl;
+	JPseud = JTEig*JInvTemp;
+	//set.Jpseudo = convertEigenToGSLMatrix(JInvTemp);
+
+	//std::cout << "Jpseudo:\n" << set.Jpseudo << endl;
+
+	//return set.Jpseudo;
+
+	/*std::cout << "Jpseudo:\n" << JInvTemp << endl;*/
+	return JPseud;
+}
+
 
 
 // inputs: qBar (joint variables used to solve), uBar (proximal moment guess used to solve), gBar (homogeneous transform)
@@ -1555,6 +1619,14 @@ void computeEu(ConcentricTubeSet &set, gsl_vector* q, gsl_vector* uBar) {
 
 		// Free
 		gsl_vector_free(h);
+
+		//// for debugging
+		//Eigen::MatrixXf BuEig = convertGSLMatrixToEigen(set.Bu);
+		//float BuDet = BuEig.determinant();
+		//printf("det(Bu): %f \n", BuDet);
+		//if(BuDet==0) {
+		//	printf("singular \n");
+		//}
 
     }
 

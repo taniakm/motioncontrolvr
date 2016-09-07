@@ -521,7 +521,7 @@ long MotionController::GetPosition(void)
 		while( !m_serial.IsInputAvailable() && nTries++ < MAX_QUERY_TRIES ) Sleep(1);
 
     if(nTries >= MAX_QUERY_TRIES) {
-      printf("Failed stupid\n");
+      //printf("Failed stupid\n");
       return m_lastPos;
     }
 		
