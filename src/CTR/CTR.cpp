@@ -210,6 +210,7 @@ float						*Beta_init;
 float						*Lc_init;
 float						*Ls_init;
 cMaterial					tubeColor[6];						// Color of each concentric tube (max of 6 right now)
+cColorf						lineColor[6];
 float						EVec[3];							// Vector of E values for different possible materials
 float						vVec[3];							// Vector of v values for different possible materials
 float						maxStrainVec[3];					// Vector of max strain values for different materials
@@ -848,7 +849,6 @@ int main(int argc, char* argv[])
 	cGenericEffect* rotateEffect;
 	rotateEffect = new cEffectSurface(rotateSphere);                // create a haptic effect
 	rotateSphere->addEffect(rotateEffect);                          // add effect to object
-	//rotateSphere->m_material->setStiffness(0.4 * maxStiffness);		// set parameters related to effect
 
 	// Add sphere to act as parent for hands
 	originSphere2 = new cShapeSphere(0.05);
@@ -918,10 +918,6 @@ int main(int argc, char* argv[])
 	vertColor.setGreenMediumSpring();
 	liver_mesh->setVertexColor(vertColor);
 	liver_mesh->translate(-meshCenter);
-	// Add haptic effect to mesh
-	/*liver_mesh->computeBoundaryBox(true);
-	liver_mesh->createAABBCollisionDetector(toolRadius);
-	liver_mesh->setStiffness(0.3*maxStiffness, true);*/
 
 	//----------------------------------
 	//--------- Add stone mesh ---------
@@ -940,10 +936,6 @@ int main(int argc, char* argv[])
 	vertColor.setYellowGold();
 	stone_mesh->setVertexColor(vertColor);
 	stone_mesh->translate(-meshCenter);
-	// Add haptic effect to mesh
-	/*stone_mesh->computeBoundaryBox(true);
-	stone_mesh->createAABBCollisionDetector(toolRadius);
-	stone_mesh->setStiffness(0.3*maxStiffness, true);*/
 
 	//----------------------------------
 	//------ Add renal pelvis mesh -----
@@ -961,11 +953,6 @@ int main(int argc, char* argv[])
 	vertColor.setBlue();
 	renal_pelvis_mesh->setVertexColor(vertColor);
 	renal_pelvis_mesh->translate(-meshCenter);
-	/*renal_pelvis_mesh->setTransparencyLevel(0.9);*/
-	// Add haptic effect to mesh
-	/*renal_pelvis_mesh->computeBoundaryBox(true);
-	renal_pelvis_mesh->createAABBCollisionDetector(toolRadius);
-	renal_pelvis_mesh->setStiffness(0.3*maxStiffness, true);*/
 
 	//----------------------------------
 	//------ Add right kidney mesh -----
@@ -984,10 +971,6 @@ int main(int argc, char* argv[])
 	right_kidney_mesh->setVertexColor(vertColor);
 	right_kidney_mesh->setTransparencyLevel(0.3);
 	right_kidney_mesh->translate(-meshCenter);
-	// Add haptic effect to mesh
-	/*right_kidney_mesh->computeBoundaryBox(true);
-	right_kidney_mesh->createAABBCollisionDetector(toolRadius);
-	right_kidney_mesh->setStiffness(0.3*maxStiffness, true);*/
 
 	//----------------------------------
 	//---------- Add skin mesh ---------
@@ -1006,11 +989,11 @@ int main(int argc, char* argv[])
 	skin_mesh->setVertexColor(vertColor);
 	skin_mesh->setTransparencyLevel(0.3);
 	skin_mesh->translate(-meshCenter);
-	// Add haptic effect to mesh
-	/*skin_mesh->computeBoundaryBox(true);
-	skin_mesh->createAABBCollisionDetector(toolRadius);
-	skin_mesh->setStiffness(0.3*maxStiffness, true);
-	*/
+
+	// for debugging
+	// test turning off all haptic effects related to origin sphere
+	originSphere->setHapticEnabled(false,true);
+
 	//----------------------------------
 	//----- Add sphere for testing -----
 	//----------------------------------
@@ -1019,12 +1002,6 @@ int main(int argc, char* argv[])
 	posSphere->m_material->setYellow();
 	posSphere->setEnabled(false);
 
-
-
-	//cGenericEffect* newEffect;
-	//newEffect = new cEffectSurface(posSphere);                // create a haptic effect
- //   posSphere->addEffect(newEffect);                          // add effect to object
- //   posSphere->m_material->setStiffness(0.4 * maxStiffness);  // set parameters related to effect
 
 	//----------------------------------
 	//- Add sphere for origin of tube --
@@ -1042,6 +1019,11 @@ int main(int argc, char* argv[])
 	tubeColor[1].setPinkMediumVioletRed();
 	tubeColor[2].setBlueCyan();
 	tubeColor[3].setGreenYellow();
+
+	lineColor[0].setOrangeLightSalmon();
+	lineColor[1].setPinkMediumVioletRed();
+	lineColor[2].setBlueCyan();
+	lineColor[3].setGreenYellow();
 
 	//// add another test sphere
 	testSphere = new cShapeSphere(0.01);
@@ -1248,9 +1230,11 @@ int main(int argc, char* argv[])
 		t.materialNum = 0;		// set initial material to Nitinol
 
 		t.moment_guess = 0;
+		t.fixedStepSize = true;
 
 		set.addTube(t);
 	}
+	
 	// Call function to set up material display properties
 	for(int i=0; i<nTubes; i++) {
 		updateTubeMaterial(set, i, 0);
@@ -2948,7 +2932,7 @@ void updateHaptics(void)
 
 				// ****** Calculate force to apply to make tool stay at tubeStartSphere position ******
 				kappaChange = true;
-				cVector3d tempForceDir = -40*contactVec;
+				cVector3d tempForceDir = -30*contactVec;
 				cTransform camToWorldTrans = camera->getGlobalTransform();
 				camToWorldTrans.invert();
 				camToWorldTrans.mulr(tempForceDir,forceDir);
@@ -3050,7 +3034,7 @@ void updateHaptics(void)
 				// ****** Calculate force to apply to make tool stay at distal tip position ******
 				cVector3d desPos = contactPoint - (tube.tubeSphere[tubeEndIndReduced[0]]->getGlobalPos());
 				kappaChange = true;
-				cVector3d tempForceDir = -30*desPos;
+				cVector3d tempForceDir = -20*desPos;
 				cTransform camToWorldTrans = camera->getGlobalTransform();
 				camToWorldTrans.invert();
 				camToWorldTrans.mulr(tempForceDir,forceDir);
@@ -3456,19 +3440,23 @@ void drawTubes(ConcentricTubeSet set) {
 	cGenericEffect* lineEffect[6];
 	double s;
 	
-	// Do initial calculations to determine 3 necessary spheres to render
-	for(int k=nTubes-1; k>=0; k--) {
-		// Start from OUTERMOST tube (tube #n) and going til INNERMOST tube (tube #0)	
-		float length = set.m_tubes[k].Ls + set.m_tubes[k].Lc + set.m_tubes[k].Beta;
-		
-		// Store index of start of each tube
-		tubeStartInd[k] = ind;
-		tubeEndInd[k] = tubeStartInd[k] + floor((length-lastLength)/hsize);
-		tubeMidInd[k] = tubeStartInd[k] + floor((length-lastLength)/hsize/2);
-		
-		lastLength = length;
-		ind = tubeEndInd[k] + 1;
-	}
+	// for testing/debugging comment out below
+	//// Do initial calculations to determine 3 necessary spheres to render
+	//for(int k=nTubes-1; k>=0; k--) {
+	//	// Start from OUTERMOST tube (tube #n) and going til INNERMOST tube (tube #0)	
+	//	float length = set.m_tubes[k].Ls + set.m_tubes[k].Lc + set.m_tubes[k].Beta;
+	//	
+	//	// Store index of start of each tube
+	//	tubeStartInd[k] = ind;
+	//	tubeEndInd[k] = tubeStartInd[k] + floor((length-lastLength)/hsize);
+	//	tubeMidInd[k] = tubeStartInd[k] + floor((length-lastLength)/hsize/2);
+	//	
+	//	lastLength = length;
+	//	ind = tubeEndInd[k] + 1;
+	//}
+	// for testing/debugging
+	tubeStartInd[nTubes-1] = 0;
+	tubeEndInd[0] = set.sStored.size()-1;
 	
 
 	ind = 0;				// set back to 0 for start of determining which spheres to draw
@@ -3479,12 +3467,19 @@ void drawTubes(ConcentricTubeSet set) {
 		// Start from OUTERMOST tube (tube #n) and going til INNERMOST tube (tube #0)	
 		float length = set.m_tubes[k].Ls + set.m_tubes[k].Lc + set.m_tubes[k].Beta;
 
+		// for testing/deubgging
+		if(k!=(nTubes-1)) {
+			tubeStartInd[k] = ind;
+		} 
+
+		
+
 		s = set.sStored[ind];
 		while(s<length)
 		{
 			testInd = testInd + 1;				// only want to draw every 10th sphere (or start,middle,end)
-			if((s>=0) && ((ind==tubeStartInd[k])||(ind==tubeMidInd[k])||(ind==tubeEndInd[k])||(testInd==5))){
-
+			if((s>=0) && ((ind==tubeStartInd[k])||(ind==tubeMidInd[k])||(ind==tubeEndInd[k])||(testInd==3))){			// NOTE: USED TO BE (TESTIND == 5) SO THAT IT WOULD ONLY DRAW EVERY 10TH SPHERE
+			//if(s>=0) {
 				// Reset to zero each time to make sure we only draw every 5th sphere
 				testInd = 0;
 
@@ -3531,34 +3526,33 @@ void drawTubes(ConcentricTubeSet set) {
 					proximalSphere->setEnabled(true);
 				}
 
-				if((!lineDrawn[k]) && (!simulationModeOn) && (!lineGripped[k])) {
-					//if((ind - lastInd) == (floor((length-lastLength)/0.0001/2))) {
-					if(ind == tubeMidInd[k]) {
-						float height = ((set.m_tubes[k].OD)/2)+0.008;
+				//if((!lineDrawn[k]) && (!simulationModeOn) && (!lineGripped[k])) {
+				//	if(ind == tubeMidInd[k]) {
+				//		float height = ((set.m_tubes[k].OD)/2)+0.008;
 
-						cVector3d tubeStartPoint = cVector3d(set.positionStored.x[tubeStartInd[k]],set.positionStored.y[tubeStartInd[k]],set.positionStored.z[tubeStartInd[k]]);
-						cVector3d tubeEndPoint = cVector3d(set.positionStored.x[tubeEndInd[k]],set.positionStored.y[tubeEndInd[k]],set.positionStored.z[tubeEndInd[k]]);
-						cVector3d lineEndPoint = computeEndPoint(tubeStartPoint, tubeEndPoint, backbonePoints, height);
-						centerLine[k] = new cShapeLine(lineEndPoint,backbonePoints);
+				//		cVector3d tubeStartPoint = cVector3d(set.positionStored.x[tubeStartInd[k]],set.positionStored.y[tubeStartInd[k]],set.positionStored.z[tubeStartInd[k]]);
+				//		cVector3d tubeEndPoint = cVector3d(set.positionStored.x[tubeEndInd[k]],set.positionStored.y[tubeEndInd[k]],set.positionStored.z[tubeEndInd[k]]);
+				//		cVector3d lineEndPoint = computeEndPoint(tubeStartPoint, tubeEndPoint, backbonePoints, height);
+				//		centerLine[k] = new cShapeLine(lineEndPoint,backbonePoints);
 
 
-						//centerLine[k] = new cShapeLine(backbonePoints-cVector3d(height,height,height),backbonePoints);
-						tubeStartSphere->addChild(centerLine[k]);
-						centerLine[k]->m_material->setWhiteHoneydew();
-						centerLine[k]->setLineWidth(30);
+				//		//centerLine[k] = new cShapeLine(backbonePoints-cVector3d(height,height,height),backbonePoints);
+				//		tubeStartSphere->addChild(centerLine[k]);
+				//		centerLine[k]->m_material->setWhiteHoneydew();
+				//		centerLine[k]->setLineWidth(30);
 
-						lineEffect[k] = new cEffectMagnet(centerLine[k]);
-						centerLine[k]->addEffect(lineEffect[k]);
-						centerLine[k]->m_material->setMagnetMaxDistance(0.01);
-						centerLine[k]->m_material->setStiffness(0.01 * maxStiffness);
+				//		lineEffect[k] = new cEffectMagnet(centerLine[k]);
+				//		centerLine[k]->addEffect(lineEffect[k]);
+				//		centerLine[k]->m_material->setMagnetMaxDistance(0.01);
+				//		centerLine[k]->m_material->setStiffness(0.01 * maxStiffness);
 
-						lineDrawn[k] = true;
-						lastLength = length;
-						lastInd = ind + (ind-lastInd);
-						centerLine[k]->setEnabled(true);
-						//tubeMidInd[k] = ind;
-					}
-				}
+				//		lineDrawn[k] = true;
+				//		lastLength = length;
+				//		lastInd = ind + (ind-lastInd);
+				//		centerLine[k]->setEnabled(true);
+				//		//tubeMidInd[k] = ind;
+				//	}
+				//}
 
 				// try adding distal sphere as well
 				if((ind==tubeEndInd[0]) && !simulationModeOn) {
@@ -3569,14 +3563,37 @@ void drawTubes(ConcentricTubeSet set) {
 
 					// Add effect to proximal end of tube
 					cGenericEffect* newEffect;										// temp variable
-					distalSphere->m_material->setGraySilver();						// set material color
+					//distalSphere->m_material->setGraySilver();						// set material color
+					distalSphere->setMaterial(tubeColor[0]);
 					newEffect = new cEffectSurface(distalSphere);					// create a haptic effect
 					distalSphere->addEffect(newEffect);								// add effect to object
-					distalSphere->m_material->setStiffness(0.8 * maxStiffness);		// set parameters related to effect
+					distalSphere->m_material->setStiffness(0.5 * maxStiffness);		// set parameters related to effect
 					distalSphere->setHapticEnabled(true);
 					distalSphere->setEnabled(true);
 
 				}
+
+				// try drawing line btwn spheres
+				//if(ind!=0) {
+				//	tube.tubeLine[indReduced] = new cShapeLine(tube.tubeSphere[indReduced]->getLocalPos(),tube.tubeSphere[indReduced-1]->getLocalPos());		
+				//	tubeStartSphere->addChild(tube.tubeLine[indReduced]);
+				//	// set color of line
+				//	tube.tubeLine[indReduced]->m_colorPointA.setR(lineColor[k].getR());
+				//	tube.tubeLine[indReduced]->m_colorPointA.setG(lineColor[k].getG());
+				//	tube.tubeLine[indReduced]->m_colorPointA.setB(lineColor[k].getB());
+				//	tube.tubeLine[indReduced]->m_colorPointB.setR(lineColor[k].getR());
+				//	tube.tubeLine[indReduced]->m_colorPointB.setG(lineColor[k].getG());
+				//	tube.tubeLine[indReduced]->m_colorPointB.setB(lineColor[k].getB());
+				//	// set width of line
+				//	tube.tubeLine[indReduced]->setLineWidth(1000*set.m_tubes[k].OD);
+				//	/*cVector3d tempLine = (tube.tubeSphere[indReduced-1]->getLocalPos())-(tube.tubeSphere[indReduced]->getLocalPos());
+				//	tubeStartSphere->addChild(tube.tubeCylinder[indReduced]);
+				//	float height = tempLine.length();
+				//	tube.tubeCylinder[indReduced] = new cShapeCylinder(set.m_tubes[k].OD/2, set.m_tubes[k].OD/2, height,tubeColor[k].create());
+				//	tube.tubeCylinder[indReduced]->setLocalPos(tube.tubeSphere[indReduced]->getLocalPos()(0),tube.tubeSphere[indReduced]->getLocalPos()(1),tube.tubeSphere[indReduced]->getLocalPos()(2));*/
+				//}
+
+
 
 				// keep track of new indices based on only drawing every 5
 				if(ind==tubeStartInd[k]) {
@@ -3605,6 +3622,38 @@ void drawTubes(ConcentricTubeSet set) {
 			
 		}
 
+		// Try setting mid index and drawing lines
+		// Start from OUTERMOST tube (tube #n) and going til INNERMOST tube (tube #0)
+		tubeEndInd[k] = ind-1;
+		tubeMidInd[k] = tubeStartInd[k] + floor((tubeEndInd[k]-tubeStartInd[k])/2.0);
+
+		if((!lineDrawn[k]) && (!simulationModeOn) && (!lineGripped[k])) {
+			float height = ((set.m_tubes[k].OD)/2)+0.008;
+
+			cVector3d tubeStartPoint = cVector3d(set.positionStored.x[tubeStartInd[k]],set.positionStored.y[tubeStartInd[k]],set.positionStored.z[tubeStartInd[k]]);
+			cVector3d tubeEndPoint = cVector3d(set.positionStored.x[tubeEndInd[k]],set.positionStored.y[tubeEndInd[k]],set.positionStored.z[tubeEndInd[k]]);
+			cVector3d midPointBackbonePoint = cVector3d(set.positionStored.x[tubeMidInd[k]],											// set backbone points based on stored xyz position computed from kinematics
+														set.positionStored.y[tubeMidInd[k]], 
+														set.positionStored.z[tubeMidInd[k]]);
+			cVector3d lineEndPoint = computeEndPoint(tubeStartPoint, tubeEndPoint, midPointBackbonePoint, height);
+			centerLine[k] = new cShapeLine(lineEndPoint,midPointBackbonePoint);
+
+			tubeStartSphere->addChild(centerLine[k]);
+			centerLine[k]->m_material->setWhiteHoneydew();
+			centerLine[k]->setLineWidth(50);
+
+			lineEffect[k] = new cEffectMagnet(centerLine[k]);
+			centerLine[k]->addEffect(lineEffect[k]);
+			centerLine[k]->m_material->setMagnetMaxDistance(0.02);
+			centerLine[k]->m_material->setStiffness(0.02 * maxStiffness);
+
+			lineDrawn[k] = true;
+			lastLength = length;
+			lastInd = ind + (ind-lastInd);
+			centerLine[k]->setEnabled(true);
+		}
+
+		
 		
 	}
 
@@ -3861,13 +3910,35 @@ void updateTubeCurvature(ConcentricTubeSet &set, int tubeIndex, cVector3d a1, cV
 	// save old value of kappa
 	float oldKappa = set.m_tubes[tubeIndex].kappa;
 
+	// Check for what radius of curvature should be for tube to be changed (based on assumption that EQUILIBRIUM CURVATURE is newly computed curvature)
+	float kappaEqNew = 1/r;
+	float rTubeNew;
+	if(tubeIndex==0) {
+		rTubeNew = r;
+	} else {
+		float sum = 0;
+		for(int i=1; i<nTubes; i++) {
+			float I = (M_PI/64)*((pow(set.m_tubes[i].OD,4))-(pow(set.m_tubes[i].ID,4)));
+			sum = sum + kappaEqNew*I*set.m_tubes[i].E;
+		}
+		rTubeNew = (((M_PI/64)*((pow(set.m_tubes[tubeIndex].OD,4))-(pow(set.m_tubes[tubeIndex].ID,4))))*set.m_tubes[tubeIndex].E)/sum;
+	}
+	
+	
+
 	// Check to see if curvature exceeds allowable curvature depending on material
 	float rMin = (set.m_tubes[tubeIndex].OD)/(2*maxStrain);
-	if(abs(r)>rMin) {
+	/*if(abs(r)>rMin) {
 		if(sameSign) {
 			set.m_tubes[tubeIndex].kappa = 1/r;
 		} else { 
 			set.m_tubes[tubeIndex].kappa = -1/r;
+		}*/
+	if(abs(rTubeNew)>rMin) {
+		if(sameSign) {
+			set.m_tubes[tubeIndex].kappa = 1/rTubeNew;
+		} else { 
+			set.m_tubes[tubeIndex].kappa = -1/rTubeNew;
 		}
 		warningName = "";
 		warningLabel->setEnabled(false);
@@ -4229,8 +4300,6 @@ void simulate(void) {
 //------------------------------------------------------------------------------
 // Calculate initial design
 //------------------------------------------------------------------------------
-
-
 struct curveFuncToSolve
 {
 	vector<cVector3d> *param;
@@ -4314,7 +4383,6 @@ struct curveFuncToSolve
 	int values() const { return 4; } // "values" is the number of f_i and 
 
 };
-
 
 void computeTubeParam(ConcentricTubeSet &set, void *circParam) {
 	vector<cVector3d> param = *(vector<cVector3d> *)circParam;				// recast
@@ -4420,27 +4488,39 @@ void computeTubeParam(ConcentricTubeSet &set, void *circParam) {
 		for(int j=0; j<(i+1); j++) {
 			float I = (M_PI/64)*((pow(set.m_tubes[j].OD,4))-(pow(set.m_tubes[j].ID,4)));
 			sumNumer1 = sumNumer1 + kappaEq*(I*set.m_tubes[j].E);
-			if(j<i) {
+			//if(j<i) {
+			/*if(j==(i-1)) {
 				sumNumer2 = sumNumer2 + set.m_tubes[j].kappa*set.m_tubes[j].E*I;
-			}
+			}*/
 		}
 		float In = (M_PI/64)*((pow(set.m_tubes[i].OD,4))-(pow(set.m_tubes[i].ID,4)));
 		set.m_tubes[i].kappa = (sumNumer1-sumNumer2)/(set.m_tubes[i].E*In);
-		/*printf("tube num: %i \n",i);
-		printf("old calc: %f \n",set.m_tubes[i].kappa);
-		printf("new calc: %f \n",testKappa);*/
 	}
 
 	for(int i=0; i<numCurves; i++) {
 		int tubeInd = numCurves-i-1;
-		if(tubeInd==(nTubes-1)) {			// outermost tube only
-			set.m_tubes[tubeInd].Lc = set.m_curves[i].lc;
+		// OLD WAY OF CALCULATING LC
+		//if(tubeInd==(nTubes-1)) {			// outermost tube only
+		//	set.m_tubes[tubeInd].Lc = set.m_curves[i].lc;
+		//} else {
+		//	//set.m_tubes[tubeInd].Lc = set.m_curves[i].lc + set.m_tubes[tubeInd+1].Lc;		// Assuming it's possible for inner tube to have curved length of calc length plus length of previous curved lengths of outer tubes
+		//	// Try only adding length of calculated curvatures of previous tubes
+		//	set.m_tubes[tubeInd].Lc = set.m_curves[i].lc + set.m_curves[i-1].lc;		
+		//}
+		set.m_tubes[tubeInd].Lc = set.m_curves[i].lc;	// try setting curved length of tube to same length as curved segment (AND NOT ADDING ON LENGTH OF OTHER CURVED SEGMENTS TOO)
+		if(tubeInd==(nTubes-1)) {	
+			set.m_tubes[tubeInd].Ls = 0.1+(0.01*(nTubes-tubeInd));
+			set.m_tubes[tubeInd].Beta = -set.m_tubes[tubeInd].Ls + 0.01;
+		} else if(tubeInd==(nTubes-2)) {
+			set.m_tubes[tubeInd].Ls = 0.1+(0.01*(nTubes-tubeInd))+ set.m_tubes[tubeInd+1].Lc;
+			set.m_tubes[tubeInd].Beta = -set.m_tubes[tubeInd].Ls + 0.01 + set.m_tubes[tubeInd+1].Lc;
 		} else {
-			set.m_tubes[tubeInd].Lc = set.m_curves[i].lc + set.m_tubes[tubeInd+1].Lc;		// Assuming it's possible for inner tube to have curved length of calc length plus length of previous curved lengths of outer tubes
+			set.m_tubes[tubeInd].Ls = 0.1+(0.01*(nTubes-tubeInd))+ set.m_tubes[tubeInd+1].Lc+ set.m_tubes[tubeInd+2].Lc;
+			set.m_tubes[tubeInd].Beta = -set.m_tubes[tubeInd].Ls + 0.01 + set.m_tubes[tubeInd+1].Lc + set.m_tubes[tubeInd+2].Lc;
 		}
-		set.m_tubes[tubeInd].Ls = 0.1+(0.01*(nTubes-tubeInd));
-		set.m_tubes[tubeInd].Beta = -set.m_tubes[tubeInd].Ls + 0.01;
-		//set.m_tubes[tubeInd].Beta = -0.01;
+		//set.m_tubes[tubeInd].Ls = 0.1+(0.01*(nTubes-tubeInd));			// OLD WAY OF CALCULATING LS
+		//set.m_tubes[tubeInd].Beta = -set.m_tubes[tubeInd].Ls + 0.01;		// OLD WAY
+		
 
 		// alpha calculations
 		int curveInd = i;

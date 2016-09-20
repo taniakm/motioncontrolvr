@@ -27,6 +27,7 @@ int findZeroResVec(const gsl_vector * x, void *params, gsl_vector * f);
 //int findZeroResVec_fdf (const gsl_vector *x, void *params, gsl_vector *f, gsl_matrix *J);
 int solveInitConditions(ConcentricTubeSet &set);
 int solveForwardKinematics(ConcentricTubeSet &set);
+int solveForwardKinematicsFixedStep(ConcentricTubeSet &set);
 gsl_matrix* computeG(ConcentricTubeSet &set);
 gsl_matrix* computeGInv(gsl_matrix * gBar);
 Eigen::MatrixXf computeJpseudo(ConcentricTubeSet &set, Eigen::MatrixXf J);
@@ -372,7 +373,11 @@ void kinematics(ConcentricTubeSet &set)
 	//---------------------------------------------------------------------------------
 	//---------- Then solve using correct initial guess to get actual states ----------
 	//---------------------------------------------------------------------------------
-	solveForwardKinematics(set);
+	if(set.m_tubes[0].fixedStepSize) {
+		solveForwardKinematicsFixedStep(set);
+	} else {
+		solveForwardKinematics(set);
+	}
 
 	for(int i=0; i<numTubes; i++) {
 		set.m_tubes[i].moment_guess = solvedState[i];
@@ -544,7 +549,7 @@ int solveForwardKinematics(ConcentricTubeSet &set)
 
 	gsl_odeiv_system sys = {kinematicFunction, jac, numStates, &set};				// set up system
 	double s = sVec[0], s1 = sVec[1];
-    double h = 1.0e-4; //1.0e-6; 
+    double h = 1.0e-8; //1.0e-4 // for teleop
 	double *y; double *y_err;
 	y_err = new double[numStates];
 	y = new double[numStates];
@@ -760,6 +765,307 @@ int solveForwardKinematics(ConcentricTubeSet &set)
 	 return GSL_SUCCESS;
 }
 
+int solveForwardKinematicsFixedStep(ConcentricTubeSet &set) 
+{
+	//---------------------------------------------------------------------------------
+	//---------- Solve using correct initial guess to get actual states ---------------
+	//---------------------------------------------------------------------------------
+
+	int n = set.m_tubes.size();											// number of tubes
+	int numStates = 12 + 2*n;										    // number of states
+	// Clear all previous states
+	set.angleStored.tube1Angle.clear();
+	set.angleStored.tube2Angle.clear();
+	set.angleStored.tube3Angle.clear();
+	set.angleStored.tube4Angle.clear();
+	set.angleStored.tube5Angle.clear();
+	set.angleStored.tube6Angle.clear();
+	set.momentStored.tube1Moment.clear();
+	set.momentStored.tube2Moment.clear();
+	set.momentStored.tube3Moment.clear();
+	set.momentStored.tube4Moment.clear();
+	set.momentStored.tube5Moment.clear();
+	set.momentStored.tube6Moment.clear();
+	//set.momentStored.clear();
+
+	set.positionStored.x.clear();
+	set.positionStored.y.clear();
+	set.positionStored.z.clear();
+	set.rotationStored.RB1.clear();
+	set.rotationStored.RB2.clear();
+	set.rotationStored.RB3.clear();
+	set.rotationStored.RB4.clear();
+	set.rotationStored.RB5.clear();
+	set.rotationStored.RB6.clear();
+	set.rotationStored.RB7.clear();
+	set.rotationStored.RB8.clear();
+	set.rotationStored.RB9.clear();
+	set.sStored.clear();
+
+	//----------------- Compute discontinuities and intervals -------------------------
+	set.discontinuitiesList = set.computeDiscontinuities();
+	set.computeIntervals(set.discontinuitiesList);
+
+	//------- For the first time through, use the following initial conditions --------
+	float midpointValue = set.intAndMid.midpoint[0];
+	set.computeKbKt(midpointValue);
+	set.computeKappa(midpointValue);
+	vector <double> sVec;
+	sVec.erase(sVec.begin(),sVec.end());
+	sVec.push_back(set.intAndMid.intervalLow[0]);
+	sVec.push_back(set.intAndMid.intervalHigh[0]);
+	//----------------------- Set initial conditions ----------------------------------
+	for(int i=0; i<n;i++) {				
+		set.initConditions[i+n] = set.m_tubes[i].moment_guess;
+		set.initConditions[i] = (set.m_tubes[i].alpha - set.m_tubes[i].Beta*set.m_tubes[i].ktInv*set.m_tubes[i].moment_guess);	
+	}
+	set.Pb_0 = cVector3d(0,0,0);
+	set.initConditions[2*n] = set.Pb_0(0);				// x position of robot at s=0
+	set.initConditions[2*n+1] = set.Pb_0(1);			// y position of robot at s=0
+	set.initConditions[2*n+2] = set.Pb_0(2);			// z position of robot at s=0
+	set.Rb_0 = cMatrix3d(1,0,0,0,1,0,0,0,1);
+	int iter = 0;
+	for(int i=0; i<3; i++) {
+		for(int j=0; j<3; j++) {
+			set.initConditions[2*n+3+iter] = set.Rb_0(i,j);		    // rotation of robot
+			iter = iter + 1;
+		}
+	}
+	//printf ("psi init: %f psi init: %f psi init: %f\n",  set.initConditions[0], set.initConditions[1], set.initConditions[2]);
+	//printf ("pos init: %f pos init: %f pos init: %f\n",  set.initConditions[3], set.initConditions[4], set.initConditions[5]);
+	//printf ("mom init: %f mom init: %f mom init: %f\n",  set.initConditions[6], set.initConditions[7], set.initConditions[8]);
+	//printf ("rot init: %f rot init: %f rot init: %f\n",  set.initConditions[9], set.initConditions[10], set.initConditions[11]);
+	//printf ("rot init: %f rot init: %f rot init: %f\n",  set.initConditions[12], set.initConditions[13], set.initConditions[14]);
+	//printf ("rot init: %f rot init: %f rot init: %f\n",  set.initConditions[15], set.initConditions[16], set.initConditions[17]);
+	
+	//--------------- Set up ODE to solve with initial conditions --------------------
+	
+	const gsl_odeiv_step_type * T  = gsl_odeiv_step_rkf45;					// Step type (rk 45)
+	gsl_odeiv_step * step = gsl_odeiv_step_alloc (T, numStates);
+
+	// ************ testing ****************
+	gsl_odeiv_control * c = gsl_odeiv_control_y_new (1e-7, 0.0);
+    gsl_odeiv_evolve * e = gsl_odeiv_evolve_alloc (numStates);
+	// *************************************
+
+	gsl_odeiv_system sys = {kinematicFunction, jac, numStates, &set};				// set up system
+	double s = sVec[0], s1 = sVec[1];
+    double h = 5.0e-4; //1.0e-4 // for teleop
+	double *y; double *y_err;
+	y_err = new double[numStates];
+	y = new double[numStates];
+	for(int i=0; i<numStates; i++) {
+		y[i] = set.initConditions[i];									// set initial conditions
+	}
+	double *dyds_in; double *dyds_out;
+	dyds_in = new double[numStates];
+	dyds_out = new double[numStates];
+    GSL_ODEIV_FN_EVAL(&sys, s, y, dyds_in);								// initialize dyds_in from system parameters 
+
+	while (s < s1) {
+        int status = gsl_odeiv_step_apply (step, s, h, y, y_err, dyds_in, dyds_out, &sys);
+
+		// ************ testing ****************
+		/*int status = gsl_odeiv_evolve_apply (e, c, step,
+                                           &sys, 
+                                           &s, s1,
+                                           &h, y);*/
+		// *************************************
+
+		if (status != GSL_SUCCESS)
+            break;
+
+		for(int i=0; i<numStates; i++) {
+			dyds_in[i] = dyds_out[i];
+			//printf("y value: %f \n", y[i]);
+		}
+
+		//--------------------- STORE STATES -------------------------
+		for(int i=0; i<n; i++) {							// store angle and moment states (depending on how many tubes)
+			if(i<1) {
+				set.angleStored.tube1Angle.push_back(y[0]);
+				set.momentStored.tube1Moment.push_back(y[n]);
+			} else if(i<2) {
+				set.angleStored.tube2Angle.push_back(y[1]);
+				set.momentStored.tube2Moment.push_back(y[n+1]);
+			} else if(i<3) {
+				set.angleStored.tube3Angle.push_back(y[2]);
+				set.momentStored.tube3Moment.push_back(y[n+2]);
+			} else if(i<4) {
+				set.angleStored.tube4Angle.push_back(y[3]);
+				set.momentStored.tube4Moment.push_back(y[n+3]);
+			} else if(i<5) {
+				set.angleStored.tube5Angle.push_back(y[4]);
+				set.momentStored.tube5Moment.push_back(y[n+4]);
+			} else if(i<6) {
+				set.angleStored.tube6Angle.push_back(y[5]);
+				set.momentStored.tube6Moment.push_back(y[n+5]);
+			}
+		}
+		//set.momentStored.push_back(y[n]);
+		//set.momentStored.push_back(y[n+1]);
+		//set.momentStored.push_back(y[n+2]);
+
+		set.positionStored.x.push_back(y[2*n]);
+		set.positionStored.y.push_back(y[2*n+1]);
+		set.positionStored.z.push_back(y[2*n+2]);
+		set.rotationStored.RB1.push_back(y[2*n+3]);
+		set.rotationStored.RB2.push_back(y[2*n+4]);
+		set.rotationStored.RB3.push_back(y[2*n+5]);
+		set.rotationStored.RB4.push_back(y[2*n+6]);
+		set.rotationStored.RB5.push_back(y[2*n+7]);
+		set.rotationStored.RB6.push_back(y[2*n+8]);
+		set.rotationStored.RB7.push_back(y[2*n+9]);
+		set.rotationStored.RB8.push_back(y[2*n+10]);
+		set.rotationStored.RB9.push_back(y[2*n+11]);
+		set.sStored.push_back(s);
+
+		s += h;
+	}
+
+	// ************ testing ****************
+	/*gsl_odeiv_evolve_free(e);
+	gsl_odeiv_control_free(c);*/
+    // *************************************
+
+	gsl_odeiv_step_free (step);
+
+	//----- For remaining intervals, use previous end state as initial condition -----
+	for(int i=1; i<(set.intAndMid.midpoint.size()); i++) {
+
+		const gsl_odeiv_step_type * T  = gsl_odeiv_step_rkf45;					// Step type (rk 45)
+		gsl_odeiv_step * step = gsl_odeiv_step_alloc (T, numStates);
+
+		// ************ testing ****************
+		gsl_odeiv_control * c = gsl_odeiv_control_y_new (1e-7, 0.0);
+		gsl_odeiv_evolve * e = gsl_odeiv_evolve_alloc (numStates);
+		// *************************************
+
+		gsl_odeiv_system sys = {kinematicFunction, jac, numStates, &set};		// set up system
+
+		set.computeKbKt(set.intAndMid.midpoint[i]);
+		set.computeKappa(set.intAndMid.midpoint[i]);
+		sVec.erase(sVec.begin(),sVec.end());
+		sVec.push_back(set.intAndMid.intervalLow[i]);
+		sVec.push_back(set.intAndMid.intervalHigh[i]);
+
+
+		delete dyds_in;
+		delete dyds_out;
+		dyds_in = new double[numStates];
+		dyds_out = new double[numStates];
+
+		// set initial conditions as the END of previous section
+		for(int j=0; j<numStates; j++) {
+			set.initConditions[j] = y[j];				// ****** does it only give the last state??******
+		}
+		delete y;
+		delete y_err;
+		y_err = new double[numStates];
+		y = new double[numStates];
+		for(int k=0; k<numStates; k++) {
+			y[k] = set.initConditions[k];									// set initial conditions
+		}
+
+		// solve ODE
+		s = sVec[0], s1 = sVec[1];
+		GSL_ODEIV_FN_EVAL(&sys, s, y, dyds_in);								// initialize dyds_in from system parameters 
+		while (s < s1) {
+			//BEGIN_TIMING(finalSolve,10);
+			int status = gsl_odeiv_step_apply (step, s, h, y, y_err, dyds_in, dyds_out, &sys);
+
+			// ************ testing ****************
+			/*int status = gsl_odeiv_evolve_apply (e, c, step,
+                                           &sys, 
+                                           &s, s1,
+                                           &h, y);*/
+			// *************************************
+
+			if (status != GSL_SUCCESS)
+				break;
+
+			for(int l=0; l<numStates; l++) {
+				dyds_in[l] = dyds_out[l];
+			}
+
+			//--------------------- STORE STATES -------------------------
+			for(int i=0; i<n; i++) {							// store angle and moment states (depending on how many tubes)
+				if(i<1) {
+					set.angleStored.tube1Angle.push_back(y[0]);
+					set.momentStored.tube1Moment.push_back(y[n]);
+				} else if(i<2) {
+					set.angleStored.tube2Angle.push_back(y[1]);
+					set.momentStored.tube2Moment.push_back(y[n+1]);
+				} else if(i<3) {
+					set.angleStored.tube3Angle.push_back(y[2]);
+					set.momentStored.tube3Moment.push_back(y[n+2]);
+				} else if(i<4) {
+					set.angleStored.tube4Angle.push_back(y[3]);
+					set.momentStored.tube4Moment.push_back(y[n+3]);
+				} else if(i<5) {
+					set.angleStored.tube5Angle.push_back(y[4]);
+					set.momentStored.tube5Moment.push_back(y[n+4]);
+				} else if(i<6) {
+					set.angleStored.tube6Angle.push_back(y[5]);
+					set.momentStored.tube6Moment.push_back(y[n+5]);
+				}
+			}
+			//set.momentStored.push_back(y[n]);
+			//set.momentStored.push_back(y[n+1]);
+			//set.momentStored.push_back(y[n+2]);
+
+			set.positionStored.x.push_back(y[2*n]);
+			set.positionStored.y.push_back(y[2*n+1]);
+			set.positionStored.z.push_back(y[2*n+2]);
+			set.rotationStored.RB1.push_back(y[2*n+3]);
+			set.rotationStored.RB2.push_back(y[2*n+4]);
+			set.rotationStored.RB3.push_back(y[2*n+5]);
+			set.rotationStored.RB4.push_back(y[2*n+6]);
+			set.rotationStored.RB5.push_back(y[2*n+7]);
+			set.rotationStored.RB6.push_back(y[2*n+8]);
+			set.rotationStored.RB7.push_back(y[2*n+9]);
+			set.rotationStored.RB8.push_back(y[2*n+10]);
+			set.rotationStored.RB9.push_back(y[2*n+11]);
+			set.sStored.push_back(s);
+
+
+			
+			s += h;
+			//END_TIMING(finalSolve,10);
+		}
+
+		// ************ testing ****************
+		/*gsl_odeiv_evolve_free(e);
+		gsl_odeiv_control_free(c);*/
+		// *************************************
+
+		gsl_odeiv_step_free (step);
+
+
+	}
+
+	/*printf ("s: %f psi: %f psi: %f psi: %f\n", s, y[0], y[1], y[2]);
+	printf ("moment: %f moment: %f moment: %f\n", y[3], y[4], y[5]);
+	printf ("pos x: %f pos y: %f pos z: %f\n", y[6], y[7], y[8]);
+	printf ("rot 1: %f rot 2: %f rot 3: %f\n", y[9], y[10], y[11]);
+	printf ("rot 4: %f rot 5: %f rot 6: %f\n", y[12], y[13], y[14]);
+	printf ("rot 7: %f rot 8: %f rot 9: %f\n", y[15], y[16], y[17]);
+	printf("\n");*/
+
+
+	//---------------------------------------------------------------------------------
+	//--------------------- Assemble necessary output states --------------------------
+	//---------------------------------------------------------------------------------
+	//delete set.u;
+	set.u = new float[n];							// correct initial condition for the moment at s=0
+	for(int i=0; i<n; i++) {
+		set.u[i] = set.m_tubes[i].moment_guess;
+	}
+
+
+	 return GSL_SUCCESS;
+}
+
 int solveInitConditions(ConcentricTubeSet &set) {
 
 	//*********************** set first guess to 0 ************
@@ -890,7 +1196,7 @@ int findZeroResVec (const gsl_vector * x, void *params, gsl_vector * f)
 
 	gsl_odeiv_system sys = {kinematicFunction, jac, numStates, &set};		// set up system
 	double s = sVec[0], s1 = sVec[1];
-    double h = 1.0e-4; //1.0e-5;												//**** trade-off between speed and accuracy... ****************
+    double h = 1.0e-8; //1.0e-4;	// for teleop											//**** trade-off between speed and accuracy... ****************
 	double *y; double *y_err;
 	y_err = new double[numStates];
 	y = new double[numStates];

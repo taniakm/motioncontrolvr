@@ -64,6 +64,7 @@ public:
 		int   materialNum;				// Number of material of tube (0=Nitinol,1=PEBA,2=Accura)
 		//Conditions for INITIAL VALUE PROBLEM
 		float moment_guess;				// guess for moment (KtPsi') at s=0
+		bool fixedStepSize;
 	};
 
 

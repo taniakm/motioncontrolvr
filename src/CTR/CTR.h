@@ -58,7 +58,10 @@ struct RightFingerLines {
 
 struct Tube {
 	cShapeSphere*		tubeSphere[100000];
+	cShapeLine*			tubeLine[1000];
+	cShapeCylinder*		tubeCylinder[1000];
 };
+
 
 struct dataStruct {							// struct to store data at a given instant
 	double				time;				// current time in program	

@@ -569,36 +569,6 @@ void keySelect(unsigned char key, int x, int y)
 		
 	}
 
-	if(key=='0') {
-		deltaPos_des[0] = 10;
-		controlRobotPos(robot, deltaPos_des, deltaRot_des);
-	}
-
-	if(key=='1') {
-		deltaRot_des[0] = 60;
-		controlRobotPos(robot, deltaPos_des, deltaRot_des);
-	}
-
-	if(key=='2') {
-		deltaPos_des[1] = 10;
-		controlRobotPos(robot, deltaPos_des, deltaRot_des);
-	}
-
-	if(key=='3') {
-		deltaRot_des[1] = 60;
-		controlRobotPos(robot, deltaPos_des, deltaRot_des);
-	}
-
-	if(key=='4') {
-		deltaPos_des[2] = 10;
-		controlRobotPos(robot, deltaPos_des, deltaRot_des);
-	}
-
-	if(key=='5') {
-		deltaRot_des[2] = 60;
-		controlRobotPos(robot, deltaPos_des, deltaRot_des);
-	}
-
 	if(key=='p') {
 		long currPos = robot.m_tubeControllers[0].transController->GetPosition();
 		float currPosMM = robot.m_tubeControllers[0].transController->ConvertPositionToMM(currPos, robot.m_tubeControllers[0].transController->devParams);
@@ -606,6 +576,20 @@ void keySelect(unsigned char key, int x, int y)
 		currPos = robot.m_tubeControllers[0].rotController->GetPosition();
 		currPosMM = robot.m_tubeControllers[0].rotController->ConvertPositionToAngle(currPos, robot.m_tubeControllers[0].rotController->devParams);
 		printf("currPos rot: %f \t currPosMM: %f \n",(float)currPos, currPosMM);
+	}
+
+	// for setting alpha positions
+	if(key=='m') {
+		// define all desired rotations
+		float rot_desDeg[NUM_TUBES] = {-30,-60,0};
+		for(int i=0; i<NUM_TUBES; i++) {
+			// Convert desired rot from deg to encoder ticks
+			int rot_des = robot.m_tubeControllers[i].rotController->ConvertAngleToPosition(rot_desDeg[i], robot.m_tubeControllers[i].rotController->devParams);
+			// Set position of rotation motor
+			robot.m_tubeControllers[i].rotController->EnableDevice();
+			robot.m_tubeControllers[i].rotController->SetPosition(rot_des);
+			//robot.m_tubeControllers[i].rotController->Stop();
+		}
 	}
 
 	// Try setting desired delta for tip to move
@@ -861,9 +845,9 @@ void updateHaptics(void)
 			hapticDevice->getPosition(tempPos);
 			printf("pos: %f %f %f \n", tempPos(0),tempPos(1),tempPos(2));
 			// check to see if omni is in "home" position
-			if((tempPos(0)<0) && (tempPos(0)>-0.13)) {
-				if((tempPos(1)<0.0001) && (tempPos(1)>-0.015)) {
-					if((tempPos(2)<0) && (tempPos(2)>-0.11)) {
+			if((tempPos(0)<0) && (tempPos(0)>-0.11)) {
+				if((tempPos(1)<0.0001) && (tempPos(1)>-0.011)) {
+					if((tempPos(2)<0) && (tempPos(2)>-0.1)) {
 						rotMode = true;
 					} else {
 						rotMode = false;
