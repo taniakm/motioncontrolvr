@@ -126,6 +126,7 @@ cVector3d axis;
 double lastAngle;
 double angle;
 bool buttonClicked[NUM_TUBES] = {false,false,false};
+bool noButtons = true;
 cVector3d rotAxis;
 cPhantomDeviceWithClutch *hDeviceJointSpace; 
 float rotInit;
@@ -652,6 +653,10 @@ void keySelect(unsigned char key, int x, int y)
 			glorifiedJointSpace = true;
 			printf("******************************** \n");
 			printf("Starting Approximate Follow-the-leader Control \n");
+			printf("Press button 0 (bottom) to translate INNERMOST TUBE \n");
+			printf("Press button 1 (upper) to translate INNERMOST AND MIDDLE TUBES \n");
+			printf("Press both buttons to translate ALL 3 TUBES \n");
+			printf("Put Omni pen inside starting hole to activate rotation \n");
 			printf("******************************** \n");
 		}
 	}
@@ -772,21 +777,28 @@ void updateHaptics(void)
 			}
 		} else {	// for glorified joint space control
 			if(button0 && !button1) {			// control just tube 0
+				noButtons = false;
 				button[0] = true;
 				button[1] = false;
 				button[2] = false;
+				//printf("Tube 0 \n");
 			} else if(button1 && !button0) {	// control tube 0,1
+				noButtons = false;
 				button[0] = true;
 				button[1] = true;
 				button[2] = false;
+				//printf("Tube 0 and 1 \n");
 			} else if(button0 && button1) {		// control tube 0,1,2
+				noButtons = false;
 				button[0] = true;
 				button[1] = true;
 				button[2] = true;
+				//printf("Tube 0, 1, and 2 \n");
 			} else {
 				button[0] = false;
 				button[1] = false;
 				button[2] = false;
+				noButtons = true;
 			}
 		}
 
@@ -843,7 +855,7 @@ void updateHaptics(void)
 			// read current device position
 			cVector3d tempPos;
 			hapticDevice->getPosition(tempPos);
-			printf("pos: %f %f %f \n", tempPos(0),tempPos(1),tempPos(2));
+			//printf("pos: %f %f %f \n", tempPos(0),tempPos(1),tempPos(2));
 			// check to see if omni is in "home" position
 			if((tempPos(0)<0) && (tempPos(0)>-0.11)) {
 				if((tempPos(1)<0.0001) && (tempPos(1)>-0.011)) {
@@ -882,6 +894,10 @@ void updateHaptics(void)
 						// read device rotation
 						hapticDevice->getRotation(deviceRot);
 						deviceRot.toAxisAngle(rotAxis, lastAngle);	// get rotation axis (axis that we're rotating about)
+						// to deal with paradoxical translation
+						//printf("LastAngle: %f \n", lastAngle);
+						//printf("rotAxis: %f %f %f \n",rotAxis(0),rotAxis(1),rotAxis(2));
+			
 						lastAxis = deviceRot.getCol2();				// get axis to determine angle of change
 						// read current device position
 						hapticDevice->getPosition(lastPos);
@@ -889,12 +905,20 @@ void updateHaptics(void)
 						posInitVec[i] = robot.m_tubeControllers[i].transController->GetMM(robot.m_tubeControllers[i].transController->devParams);
 						// enable motors
 						robot.m_tubeControllers[i].transController->EnableDevice();
+		
 					} else if(!button[i]) {
 						buttonClicked[i] = false;
 						rotModeRecognized = false;
 						if(readyToStart) {
-							robot.m_tubeControllers[i].transController->Stop();
-							robot.m_tubeControllers[i].rotController->Stop();
+							/*robot.m_tubeControllers[i].transController->Stop();
+							robot.m_tubeControllers[i].rotController->Stop();*/
+
+
+							//******* TESTING ********************
+							// read current position based on encoder readings
+							posInitVec[i] = robot.m_tubeControllers[i].transController->GetMM(robot.m_tubeControllers[i].transController->devParams);
+							// enable motors
+							robot.m_tubeControllers[i].transController->EnableDevice();
 						}
 					}
 				}
@@ -1009,13 +1033,21 @@ void updateHaptics(void)
 				// position calculations
 				hapticDevice->getPosition(devicePos);
 				cVector3d diff = devicePos - lastPos;
-				double projectedDist = (diff.dot(rotAxis))/rotAxis.length();
+				//double projectedDist = (diff.dot(rotAxis))/rotAxis.length();
+				double projectedDist = (diff.dot(deviceRot.getCol0()))/rotAxis.length();
 				// rotation
 				hapticDevice->getRotation(deviceRot);
 				// 
 				for(int i=0; i<NUM_TUBES; i++) {
 					if(!rotMode) {
-						Beta_des[i] = posInitVec[i] - (projectedDist*1000);	// converted to mm
+						if(noButtons) {		// no buttons pressed, so try stopping all motors!
+							robot.m_tubeControllers[i].transController->Stop();
+							robot.m_tubeControllers[i].rotController->Stop();
+						} else if(buttonClicked[i]) {
+							Beta_des[i] = posInitVec[i] - ((projectedDist/4)*1000);	// converted to mm
+						} else {
+							Beta_des[i] = posInitVec[i];
+						}
 					} else {
 						// calculate angle
 						axis = deviceRot.getCol1();
