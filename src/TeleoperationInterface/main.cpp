@@ -1,7 +1,14 @@
 //------------------------------------------------------------------------------
 #define WIN32
 
+//#define TESTING_TELEOP
+
 #include "main.h"
+
+// for finding memory leaks
+#include <stdlib.h>
+#include <crtdbg.h>
+
 //------------------------------------------------------------------------------
 using namespace chai3d;
 using namespace std;
@@ -31,6 +38,7 @@ bool clutchPressed = false;
 cPrecisionClock clock;
 bool jointSpaceControl = true;			// to change btwn joint space control and cartesian control
 bool glorifiedJointSpace = false;
+bool tissueDrivingTests = false;
 
 // information about computer screen and GLUT display window
 int screenW;
@@ -69,7 +77,7 @@ Eigen::MatrixXf JhPosShared(3,6);
 int *endInd;
 int endIndex;
 cVector3d *pos_curr;
-cVector3d pos_des = cVector3d(0.0, 0.022257, 0.097838); //(0.005,0.03,0.14);
+cVector3d pos_des = cVector3d(0.0, 0.0301, 0.103); //(0.005,0.03,0.14);
 cVector3d posDot_des;
 Eigen::MatrixXf qDot_des(6,1);			// change depending on tube num (TubeNum,1) 
 Eigen::VectorXf xDot_des(3);
@@ -84,12 +92,12 @@ cVector3d devPos;
 cVector3d lastDevPos;
 
 // Teleoperation variables
-double epsilonPos = 0.003;  //trying 1 mm for now?
+double epsilonPos = 0.001;  //trying 1 mm for now?
 double epsilonOrient = 1;
-double vMax = .022; //.011; 
-double vMin = 0.005; //0.001; 
-double lambdaPos = 4;//4;
-float deltaT = 0.015; //0.008;					// assumed amount of time that speed was applied
+double vMax = 0.015; //0.08 ;//.022; //.011; 
+double vMin = 0.004; //0.001; 
+double lambdaPos = 2;//4;
+float deltaT = 0.01; // 0.1; // 0.015; //0.008;					// assumed amount of time that speed was applied
 float deltaT2 = 0.035;
 float offsetBeta[NUM_TUBES];
 float offsetAlpha[NUM_TUBES];
@@ -140,6 +148,10 @@ int tubeToControl;
 bool rotMode = false;
 bool rotModeRecognized = false;
 
+// For tissue driving tests
+float posInitVec_tissueDriving[NUM_TUBES];
+float posIncrement[NUM_TUBES];
+
 //------------------------------------------------------------------------------
 // DECLARED FUNCTIONS
 //------------------------------------------------------------------------------
@@ -165,6 +177,10 @@ int main(int argc, char* argv[])
 {
 	cout << "-----------------------------------" << endl;
     cout << "Teleoperation Interface Starting" << endl;
+	cout << "PRESS THE FOLLOWING KEYS:" << endl;
+	cout << "s: start motion controllers -> starts as joint space control" << endl;
+	cout << "j: switch to task space control (out of joint space)" << endl;
+	cout << "g: glorified joint space (follow-the-leader type)" << endl;
 	cout << "-----------------------------------" << endl;
 
 	//--------------------------------------------------------------------------
@@ -260,11 +276,11 @@ int main(int argc, char* argv[])
 	//workspaceBox->setLocalPos(0,0,0.08);
 
 	// Create a sphere for the tip pos for debugging
-	tipSphereDebug = new cShapeSphere(0.002);
+	/*tipSphereDebug = new cShapeSphere(0.002);
 	world->addChild(tipSphereDebug);
 	tipSphereDebug->m_material->setYellowGold();
 	tipSphereDebug->setShowFrame(true);
-	tipSphereDebug->setFrameSize(0.05);
+	tipSphereDebug->setFrameSize(0.05);*/
 
 	// Create a sphere for desired pos of tip
 	desPosSphere = new cShapeSphere(0.002);
@@ -379,43 +395,84 @@ void keySelect(unsigned char key, int x, int y)
 		}
 
 		if(useDefaultSetBool) {    // load default tube set
+			
+			// Tube 0 parameters
+			//ConcentricTubeSet::tube t0;
+			//t0.alpha = 0; //M_PI/2;
+			//t0.OD = 0.001514; //0.0018;
+			//t0.ID = 0.000902; //0.0013;
+			//t0.E = 50000000000;
+			//t0.v = 0.33;
+			//t0.kappa = -23.2558; //10;
+			//t0.Beta = -0.22; //-0.13;
+			//t0.Lc = 0.038; //0.08;
+			//t0.Ls = 0.268; //0.14;
+			//set.addTube(t0);
+
+			//// Tube 1 parameters
+			//ConcentricTubeSet::tube t1;
+			//t1.alpha = 0; //-M_PI/2;
+			//t1.OD = 0.002543; //0.0025;
+			//t1.ID = 0.001829; //0.0020;
+			//t1.E = 50000000000;
+			//t1.v = 0.33;
+			//t1.kappa = -5.9524; //10;
+			//t1.Beta = -0.1; //-0.09;
+			//t1.Lc = 0.042; //0.07;
+			//t1.Ls = 0.137; //0.10;
+			//set.addTube(t1);
+
+			//// Tube 2 parameters
+			//ConcentricTubeSet::tube t2;
+			//t2.alpha = 0;
+			//t2.OD = 0.003226; //0.0035;
+			//t2.ID = 0.002896; //0.0030;
+			//t2.E = 50000000000;
+			//t2.v = 0.33;
+			//t2.kappa = -6.1728; //9;
+			//t2.Beta = -0.03; //-0.07;
+			//t2.Lc = 0.05;
+			//t2.Ls = 0.05; //0.08;
+			//set.addTube(t2);
+			
+
 			// Tube 0 parameters
 			ConcentricTubeSet::tube t0;
-			t0.alpha = 0; //M_PI/2;
-			t0.OD = 0.001514; //0.0018;
-			t0.ID = 0.000902; //0.0013;
-			t0.E = 50000000000;
+			t0.alpha = 0; 
+			t0.OD = 0.0024; 
+			t0.ID = 0.001; 
+			t0.E = 2400000000;
 			t0.v = 0.33;
-			t0.kappa = -23.2558; //10;
-			t0.Beta = -0.22; //-0.13;
-			t0.Lc = 0.038; //0.08;
-			t0.Ls = 0.268; //0.14;
+			t0.kappa = -25; //-50; 
+			t0.Beta = -0.15; //-0.22; // min
+			t0.Lc = 0.03; 
+			t0.Ls = 0.21; 
 			set.addTube(t0);
 
 			// Tube 1 parameters
 			ConcentricTubeSet::tube t1;
-			t1.alpha = 0; //-M_PI/2;
-			t1.OD = 0.002543; //0.0025;
-			t1.ID = 0.001829; //0.0020;
-			t1.E = 50000000000;
+			t1.alpha = 0; 
+			t1.OD = 0.0038; 
+			t1.ID = 0.003; 
+			t1.E = 2400000000;
 			t1.v = 0.33;
-			t1.kappa = -5.9524; //10;
-			t1.Beta = -0.1; //-0.09;
-			t1.Lc = 0.042; //0.07;
-			t1.Ls = 0.137; //0.10;
+			t1.kappa = -6.666; // -5.555
+			t1.Beta = -0.085; //-0.1; // min
+			t1.Lc = 0.07; 
+			t1.Ls = 0.095; //0.10;
 			set.addTube(t1);
 
 			// Tube 2 parameters
 			ConcentricTubeSet::tube t2;
 			t2.alpha = 0;
-			t2.OD = 0.003226; //0.0035;
-			t2.ID = 0.002896; //0.0030;
-			t2.E = 50000000000;
+			t2.OD = 0.0054; 
+			t2.ID = 0.0044;
+			t2.E = 2400000000;
 			t2.v = 0.33;
-			t2.kappa = -6.1728; //9;
-			t2.Beta = -0.03; //-0.07;
-			t2.Lc = 0.05;
-			t2.Ls = 0.05; //0.08;
+			t2.kappa = -4; //-5;  
+			t2.Beta = -0.03; //-0.03;
+			t2.Lc = 0.04;
+			t2.Ls = 0.02; 
 			set.addTube(t2);
 		} else {			// load the entered tube parameters
 			for(int i=0; i<tubeNum; i++) {
@@ -497,10 +554,13 @@ void keySelect(unsigned char key, int x, int y)
 		lockObject = new cMutex();
 		/*alpha = new float[tubeNum];
 		Beta = new float[tubeNum];*/
-		sVals = new double[1000];
+		
+
+		// Commenting out for debugging... these don't seem to be doing anything??
+		/*sVals = new double[1000];
 		xPos = new double[1000];
 		yPos = new double[1000];
-		zPos = new double[1000];
+		zPos = new double[1000];*/
 		
 
 		// Set alpha and Beta values
@@ -517,12 +577,12 @@ void keySelect(unsigned char key, int x, int y)
 		}
 
 		// Set beta min and max values
-		BetaMinVec[2] = -0.035;
-		BetaMinVec[1] = -0.105;
-		BetaMinVec[0] = -0.225;
+		BetaMinVec[2] = -0.03;  //-0.035;
+		BetaMinVec[1] = -0.100; //-0.105
+		BetaMinVec[0] = -0.220; //-0.225
 		BetaMaxVec[2] = -0.005;
 		BetaMaxVec[1] = -0.05;
-		BetaMaxVec[0] = -0.13;
+		BetaMaxVec[0] = -0.09;
 
 		// Initialize delta_des
 		delta_des.zero();
@@ -596,36 +656,37 @@ void keySelect(unsigned char key, int x, int y)
 	// Try setting desired delta for tip to move
 	if(key=='f') {
 		//delta_des.set(0.0, 0.0, -0.015); // used to be 'd' down
-		delta_des.set(0.0, 0.0, 0.015);
+		delta_des.set(0.0, 0.0, 0.003);
 		pos_des.add(delta_des(0),delta_des(1),delta_des(2));
+		printf("increased desired pos \n");
 	}
 
 	if(key=='b') {
 		//delta_des.set(0.0, 0.0, 0.015); // used to be 'u' up on screen
-		delta_des.set(0.0, 0.0, -0.015);
+		delta_des.set(0.001, 0.0, 0.0);
 		pos_des.add(delta_des(0),delta_des(1),delta_des(2));
 	}
 
 	if(key=='o') {
 		//delta_des.set(0.0, 0.015, 0.0);  // used to be 'r'
-		delta_des.set(0.0, 0.015, 0.0);
+		delta_des.set(0.0, 0.001, 0.0);
 		pos_des.add(delta_des(0),delta_des(1),delta_des(2));
 	}
 
-	if(key=='i'){
-		//delta_des.set(0.0, -0.015, 0.0); // used to be 'l'
-		delta_des.set(0.0, -0.015, 0.0);
-		pos_des.add(delta_des(0),delta_des(1),delta_des(2));
-	}
-
-	if(key=='l') {
+	/*if(key=='l') {
 		delta_des.set(0.015, 0.0, 0.0);
 		pos_des.add(delta_des(0),delta_des(1),delta_des(2));
-	}
+	}*/
 
 	if(key=='r') {
 		delta_des.set(-0.015, 0.0, 0.0);
 		pos_des.add(delta_des(0),delta_des(1),delta_des(2));
+	}
+
+
+	// Look for memory leak
+	if(key=='l') {
+		_CrtDumpMemoryLeaks();
 	}
 
 	// Change to joint space control
@@ -659,6 +720,81 @@ void keySelect(unsigned char key, int x, int y)
 			printf("Put Omni pen inside starting hole to activate rotation \n");
 			printf("******************************** \n");
 		}
+	}
+
+	// For testing: tissue driving tests
+	if(key=='t') {
+		tissueDrivingTests = true;
+		//jointSpaceControl = false;
+		glorifiedJointSpace = false;
+		printf("******************************** \n");
+		printf("STARTING TISSUE DRIVING TEST MODE \n");
+		printf("******************************** \n");
+
+		// read current position based on encoder readings
+		for(int i=0; i<NUM_TUBES; i++) {
+			posInitVec_tissueDriving[i] = robot.m_tubeControllers[i].transController->GetMM(robot.m_tubeControllers[i].transController->devParams);
+			Beta_des[i] = posInitVec_tissueDriving[i];
+			robot.m_tubeControllers[i].transController->Stop();
+
+			alpha_des[i] = robot.m_tubeControllers[i].rotController->GetAngle(robot.m_tubeControllers[i].rotController->devParams);
+			robot.m_tubeControllers[i].rotController->Stop();				
+		}
+		// set everything to 0;
+		posIncrement[0] = 0; // set to 10 mm for now
+		posIncrement[1] = 0;
+		posIncrement[2] = 0;
+	}
+
+	// To move tube 0
+	if(key=='0') {
+		printf("Move Tube 0 \n");
+		// read current position based on encoder readings
+		for(int i=0; i<NUM_TUBES; i++) {
+			posInitVec_tissueDriving[i] = robot.m_tubeControllers[i].transController->GetMM(robot.m_tubeControllers[i].transController->devParams);
+		}
+		// Set increment to insert tube
+		posIncrement[0] = 10; // set to 10 mm for now
+		posIncrement[1] = 0;
+		posIncrement[2] = 0;
+
+		robot.m_tubeControllers[0].transController->EnableDevice();
+		robot.m_tubeControllers[1].transController->Stop();
+		robot.m_tubeControllers[2].transController->Stop();
+	}
+
+	// To move tube 0 & 1
+	if(key=='1') {
+		printf("Move Tube 0 & 1 \n");
+		// read current position based on encoder readings
+		for(int i=0; i<NUM_TUBES; i++) {
+			posInitVec_tissueDriving[i] = robot.m_tubeControllers[i].transController->GetMM(robot.m_tubeControllers[i].transController->devParams);
+		}
+		// Set increment to insert tube
+		posIncrement[0] = 10; // set to 10 mm for now
+		posIncrement[1] = 10;
+		posIncrement[2] = 0;
+
+		robot.m_tubeControllers[0].transController->EnableDevice();
+		robot.m_tubeControllers[1].transController->EnableDevice();
+		robot.m_tubeControllers[2].transController->Stop();
+	}
+
+	// To move tube 0 & 1 & 2
+	if(key=='2') {
+		printf("Move Tube 0 & 1 & 2 \n");
+		// read current position based on encoder readings
+		for(int i=0; i<NUM_TUBES; i++) {
+			posInitVec_tissueDriving[i] = robot.m_tubeControllers[i].transController->GetMM(robot.m_tubeControllers[i].transController->devParams);
+		}
+		// Set increment to insert tube
+		posIncrement[0] = 10; // set to 10 mm for now
+		posIncrement[1] = 10;
+		posIncrement[2] = 10;
+
+		robot.m_tubeControllers[0].transController->EnableDevice();
+		robot.m_tubeControllers[1].transController->EnableDevice();
+		robot.m_tubeControllers[2].transController->EnableDevice();
 	}
 
 }
@@ -803,15 +939,24 @@ void updateHaptics(void)
 		}
 
 		if(!jointSpaceControl) {	// FOR CARTESIAN CONTROL USE BUTTON AS CLUTCH
-			if(button0) {
+			if(!button0) {
+				clutchPressed=true;
+				cPhantomDeviceWithClutch *hDevice = (cPhantomDeviceWithClutch *)hapticDevice.get();
+				hDevice->clutchPressed();
+				pos_des.set(tipPosShared(0),tipPosShared(1),tipPosShared(2));
+			} else if(button0 && clutchPressed) {
+				cPhantomDeviceWithClutch *hDevice = (cPhantomDeviceWithClutch *)hapticDevice.get();
+				hDevice->releaseClutch();
+			} 
+			/*if(button0) {
 				clutchPressed = true;
 				cPhantomDeviceWithClutch *hDevice = (cPhantomDeviceWithClutch *)hapticDevice.get();
 				hDevice->clutchPressed();
 			} else if(!button0 && clutchPressed) {
 				cPhantomDeviceWithClutch *hDevice = (cPhantomDeviceWithClutch *)hapticDevice.get();
 				hDevice->releaseClutch();
-			}
-		} else if(jointSpaceControl && !glorifiedJointSpace){	// FOR JOINT SPACE CONTROL USE BUTTONS TO SIGNAL WHICH TUBE TO CONTROL
+			}*/
+		} else if(jointSpaceControl && !glorifiedJointSpace && !tissueDrivingTests){	// FOR JOINT SPACE CONTROL USE BUTTONS TO SIGNAL WHICH TUBE TO CONTROL
 			if(button[tubeToControl] && !buttonClicked[tubeToControl]) {
 				buttonClicked[tubeToControl] = true;
 
@@ -838,7 +983,7 @@ void updateHaptics(void)
 				// for testing/debugging
 				robot.m_tubeControllers[tubeToControl].transController->EnableDevice();
 				robot.m_tubeControllers[tubeToControl].rotController->EnableDevice();
-			} else if(!button[tubeToControl]) {
+			} else if(!button[tubeToControl] && !tissueDrivingTests) {
 				buttonClicked[0] = false;
 				buttonClicked[1] = false;
 				buttonClicked[2] = false;
@@ -947,14 +1092,12 @@ void updateHaptics(void)
 					// UPDATE MOTION CONTROLLERS
 					/////////////////////////////////////////////////////////////////////
 					for(int i=0; i<tubeNum; i++) {
-						// for setting ABSOLUTE position (just don't update offset values)
-						Beta_des[i] = (q(i+NUM_TUBES)-offsetBeta[i])*1000;				// convert to MM
+						// for setting RELATIVE position (delta position)
+						Beta_des[i] = (q(i+NUM_TUBES)-offsetBeta[i])*1000;		// convert to MM
 						alpha_des[i] = (q(i)-offsetAlpha[i])*180.0/M_PI;		// convert to degrees
 
-						// update SHARED alpha and beta values
-						/*alpha[i] = q(i);
-						Beta[i] = q(i+NUM_TUBES);*/
-						alpha[i] = qPrev(i);				// try using actual values based on encoder readings
+						// update SHARED alpha and beta values (ABSOLUTE values in [m])
+						alpha[i] = qPrev(i);									// try using actual values based on encoder readings
 						Beta[i] = qPrev(i+NUM_TUBES);
 					}
 					/*printf("--------------------------------------------------- \n");
@@ -988,7 +1131,7 @@ void updateHaptics(void)
 
 					lockObject->release();		// must release object only if it was acquired 
 				}
-			} else if(jointSpaceControl && !glorifiedJointSpace) { 
+			} else if(jointSpaceControl && !glorifiedJointSpace && !tissueDrivingTests) { 
 				/////////////////////////////////////////////////////////////////////
 				// FOR JOINT SPACE CONTROL
 				/////////////////////////////////////////////////////////////////////
@@ -1074,6 +1217,16 @@ void updateHaptics(void)
 				}
 				// send command to motor
 				controlRobotPos(robot, Beta_des, alpha_des);
+			} else if(tissueDrivingTests) {
+				/////////////////////////////////////////////////////////////////////
+				// FOR DRIVING THROUGH TISSUE
+				/////////////////////////////////////////////////////////////////////
+				for(int i=0; i<NUM_TUBES; i++) {
+					Beta_des[i] = posInitVec_tissueDriving[i] + posIncrement[i];	// converted to mm
+				}
+				// send command to motor
+				//printf("Beta_des: %f %f %f \n", Beta_des[0], Beta_des[1], Beta_des[2]);
+				controlRobotPos(robot, Beta_des, alpha_des);
 			}
 		}
 
@@ -1116,7 +1269,13 @@ void updatePos(void) {
 	//// set last dev pos to current dev pos
 	//lastDevPos->set(devPos->x(),devPos->y(),devPos->z());
 	delta_des = devPos - lastDevPos;
+	#ifdef TESTING_TELEOP
+		delta_des = cVector3d(0,0,0);
+	#endif
 	pos_des = pos_des + cVector3d(-delta_des(2),delta_des(0),-delta_des(1));
+	// for testing!!
+	// trying to add delta to current tip pos rather than old desired pos
+	//pos_des = currTipPos + 50*cVector3d(-delta_des(2),delta_des(0),-delta_des(1));
 	lastDevPos = devPos;
 
 
@@ -1131,13 +1290,13 @@ void updatePos(void) {
 	//desPosSphere->setLocalPos(pos_des(0),pos_des(1),pos_des(2));
 	cVector3d transformedTipPos = transformDrawing*currTipPos;
 	cVector3d transformedDesPos = transformDrawing*pos_des;
-	desDirLine->m_pointA.set(transformedTipPos(0),transformedTipPos(1),transformedTipPos(2));
-	desDirLine->m_pointB.set(transformedDesPos(0),transformedDesPos(1),transformedDesPos(2));
+	/*desDirLine->m_pointA.set(transformedTipPos(0),transformedTipPos(1),transformedTipPos(2));
+	desDirLine->m_pointB.set(transformedDesPos(0),transformedDesPos(1),transformedDesPos(2));*/
 	desPosSphere->setLocalPos(transformedDesPos(0),transformedDesPos(1),transformedDesPos(2));
 
 	/*printf("des pos: %f %f %f \n", transformedDesPos);
 	printf("tip pos: %f %f %f \n", transformedTipPos);*/
-	printf("------- \n");
+	//printf("------- \n");
 
 	// Calculate desired linear velocity
 	double v;
@@ -1195,14 +1354,34 @@ void updatePos(void) {
 		}
 
 		// check compared to other tubes
-		if(i>0) {
+		/*if(i>0) {
 			if((q(i+tubeNum)+set.m_tubes[i].Lc+set.m_tubes[i].Ls)>(q(i+tubeNum-1)+set.m_tubes[i-1].Lc+set.m_tubes[i-1].Ls)) {
 				q(i+tubeNum) = q(i+tubeNum-1) + set.m_tubes[i-1].Lc + set.m_tubes[i-1].Ls - set.m_tubes[i].Lc -set.m_tubes[i].Ls - 0.002;
 			}
-		}
+		}*/
 	}
 
 	// check for Beta min/max being hit
+	//if(BetaMinHit[0] && BetaMaxHit[2]) {
+	//	//printf("limit hit \n");
+	//	Eigen::MatrixXf newJh;
+	//	newJh = JhPosTemp;
+	//	newJh.block(0,3,3,1) << 0,0,0;
+	//	Eigen::MatrixXf newJpseudoPos(6,3);
+	//	newJpseudoPos = computeNewJpseudoPos(newJh);
+
+	//	qDot_des = newJpseudoPos*xDot_des;
+	//	q = qPrev + qDot_des*deltaT;
+	//	for(int i=0; i<tubeNum; i++) {
+	//		BetaMin = BetaMinVec[i];
+	//		BetaMax = BetaMaxVec[i];
+	//		if(q(i+tubeNum)<BetaMin) {
+	//			q(i+tubeNum) = BetaMin;
+	//		} else if(q(i+tubeNum)>BetaMax) {
+	//			q(i+tubeNum) = BetaMax;
+	//		}
+	//	}
+	//} else 
 	if((BetaMaxHit[1] && BetaMinHit[2]) || (BetaMaxHit[1] && BetaMaxHit[2]) || BetaMinHit[2]) {
 		//printf("limits hit \n");
 		// set new JhPos with columns zeroed
@@ -1225,17 +1404,28 @@ void updatePos(void) {
 		}
 	}
 
-	printf("q: %f %f %f \n", q(0),q(1),q(2));
-	char *str1 = new char[1024];
-	sprintf(str1, "q = [%.8f; %.8f; %.8f] \n", q(0),q(1),q(2));
+	//printf("q: %f %f %f \n", q(0),q(1),q(2));
+	/*char *str1 = new char[1024];
+	sprintf(str1, "q = [%.8f; %.8f; %.8f; %.8f; %.8f; %.8f] \n", q(0),q(1),q(2),q(3),q(4),q(5));
 	OutputDebugString(str1);
 	delete str1;
 
-	printf("q: %f %f %f \n", q(0),q(1),q(2));
-	char *str2 = new char[1024];
+	char *str5 = new char[1024];
+	sprintf(str5, "pos_des = [%.8f; %.8f; %.8f] \n", pos_des(0), pos_des(1), pos_des(2));
+	OutputDebugString(str5);
+	delete str5;*/
+
+	char *str1 = new char[1024];
+	sprintf(str1, "%.8f; %.8f; %.8f; %.8f; %.8f; %.8f; %.8f; %.8f; %.8f; %.8f; %.8f \n", q(0),q(1),q(2),q(3),q(4),q(5),pos_des(0), pos_des(1), pos_des(2), v, pos_error);
+	OutputDebugString(str1);
+	delete str1;
+
+
+	//printf("q: %f %f %f \n", q(0),q(1),q(2));
+	/*char *str2 = new char[1024];
 	sprintf(str2, "qPrev = [%.8f; %.8f; %.8f] \n", qPrev(0),qPrev(1),qPrev(2));
 	OutputDebugString(str2);
-	delete str2;
+	delete str2;*/
 
 
 	// check for Beta min/max being hit
@@ -1391,7 +1581,7 @@ void updatePosHardCode(ConcentricTubeSet &set) {
 //------------------------------------------------------------------------------
 void runKinematics(void) {
 	while(simulationRunning) {
-		ConcentricTubeSet setTemp;
+		//ConcentricTubeSet setTemp;
 		if(lockObject->acquire()) {
 			// 1. grab values of alpha and beta
 			for(int i=0; i<tubeNum; i++) {
@@ -1408,34 +1598,30 @@ void runKinematics(void) {
 		printf("kinematics computed \n");
 
 		// for debugging
-		char *str3 = new char[1024];
+		/*char *str3 = new char[1024];
 		sprintf(str3, "new jacobian \n");
 		OutputDebugString(str3);
-		delete str3;
-		
-		//if(firstTime) {
-		//	firstTime = false;
-		//	/*int endInd = set.sStored.size()-1;
-		//	printf("x: %f  y: %f  z: %f \n", set.positionStored.x[endInd],set.positionStored.y[endInd],set.positionStored.z[endInd]);*/
-
-
-		//	//testing
-		//	readyToStart = true;
-		//}
+		delete str3;*/
 
 		// testing
 		// 3. Update tip position and jacobian (shared variables)
 		if(lockObject->acquire()) {
-			/*endIndex = set.sStored.size()-1;
-			endInd = &endIndex;
-			for(int i=0;i<=endIndex;i++) {
-				sVals[i] = set.sStored[i];
-				xPos[i] = set.positionStored.x[i];
-				yPos[i] = set.positionStored.y[i];
-				zPos[i] = set.positionStored.z[i];
-			}*/
 			endIndex = set.sStored.size()-1;
 			tipPosShared.set(set.positionStored.x[endIndex],set.positionStored.y[endIndex],set.positionStored.z[endIndex]);
+
+			// testing to see if we can set initial position of desired pos sphere
+			if(firstTime) {
+				cVector3d transformedDesPos = transformDrawing*tipPosShared;
+				desPosSphere->setLocalPos(transformedDesPos(0),transformedDesPos(1),transformedDesPos(2));
+
+				hapticDevice->getPosition(devPos);
+				hapticDevice->getPosition(lastDevPos);
+
+				// testing putting this in here instead b/c think other stuff in here wasn't getting called before
+				firstTime = false;
+				readyToStart = true;
+			}
+
 			JpseudoPosShared = set.JpseudoPos;
 			JhPosShared = set.JhPos;
 
@@ -1443,15 +1629,12 @@ void runKinematics(void) {
 		}
 
 
-		if(firstTime) {
-			firstTime = false;
-			/*int endInd = set.sStored.size()-1;
-			printf("x: %f  y: %f  z: %f \n", set.positionStored.x[endInd],set.positionStored.y[endInd],set.positionStored.z[endInd]);*/
-
-
-			//testing
-			readyToStart = true;
-		}
+		// testing commenting this out for now and moved it inside loop above
+		//if(firstTime) {
+		//	firstTime = false;
+		//	//testing
+		//	readyToStart = true;
+		//}
 
 	}
 }
@@ -1481,11 +1664,12 @@ void calcError(cVector3d curr, cVector3d des) {
 	cVector3d diff;
 	des.subr(curr,diff);
 	pos_error = sqrt(diff.dot(diff));		// position error
+	//pos_error = diff.length();
 	if(pos_error!=0) {
 		// ***** for testing ******
-		if(abs(diff(1))>abs((1.5*diff(2)))) {
+		/*if(abs(diff(1))>abs((1.5*diff(2)))) {
 			diff.mul(1,2,1);
-		}
+		}*/
 		// **************************
 		nHat = diff/(diff.length());			// nHat
 	} else {
@@ -1560,7 +1744,7 @@ void controlRobotPos(CTRControl robot, float desPos[NUM_TUBES], float desRot[NUM
 			//} else {   // FOR JOINT SPACE CONTROL
 			//	robot.m_tubeControllers[i].transController->SetPosition(pos_des);
 			//}
-		}
+		} 
 		// Move rotation motor
 		if(desRot[i]!=currRotDeg) {
 			float rot_desDeg = desRot[i];

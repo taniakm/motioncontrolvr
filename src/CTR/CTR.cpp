@@ -594,7 +594,7 @@ int main(int argc, char* argv[])
 	//--------------------------------------------------------------------------
     // SETUP FOR SERIAL COMMUNICATION WITH ARDUINO
     //--------------------------------------------------------------------------
-	SP = new Serial("\\\\.\\COM50");    // adjust as needed
+	SP = new Serial("\\\\.\\COM35");    // adjust as needed
 
 	if (SP->IsConnected()) {
 		printf("Arduino connected \n");
@@ -942,7 +942,8 @@ int main(int argc, char* argv[])
 	if(cLoadFileOBJ(stone_mesh, stone_fileName	 )){
 		printf("--------> stone file loaded!! <-------- \n");
 	}
-	stone_mesh->translate(0,-.02,.065);
+	//stone_mesh->translate(0,-.02,.065);		// original stone position
+	stone_mesh->translate(0.014,0,.046);			// attempted tumor position
 	stone_mesh->setShowEnabled(true);
 	stone_mesh->setUseVertexColors(true);
 	stone_mesh->setUseMaterial(true);
@@ -1150,7 +1151,7 @@ int main(int argc, char* argv[])
 		materialOptionLabel[i]->setEnabled(false);
 	}
 	materialOptionLabel[0]->setString("Nitinol");
-	materialOptionLabel[1]->setString("PEBA");
+	materialOptionLabel[1]->setString("PCL");
 	materialOptionLabel[2]->setString("Accura");
 	
 	//------------------------------------------------------------------------------
@@ -1230,12 +1231,19 @@ int main(int argc, char* argv[])
 	maxLength[0] = .4; //[m]
 	minWallThickness[0] = .0003;
 	// PEBA 2301
-	materialNameVec[1] = "PEBA 2301";
-	EVec[1] = 75;
-	vVec[1] = 0.4;				// estimated based on poisson's ratio of polyethylene/nylons/plastics
-	maxStrainVec[1] = .11;
+	//materialNameVec[1] = "PEBA 2301";
+	//EVec[1] = 75;
+	//vVec[1] = 0.4;				// estimated based on poisson's ratio of polyethylene/nylons/plastics
+	//maxStrainVec[1] = .11;
+	//maxLength[1] = .350; //[m]
+	//minWallThickness[1] = .0007;
+	// PCL
+	materialNameVec[1] = "PCL";
+	EVec[1] = 2400;
+	vVec[1] = 0.3;				// estimated based on poisson's ratio of polyethylene/nylons/plastics
+	maxStrainVec[1] = .2;
 	maxLength[1] = .350; //[m]
-	minWallThickness[1] = .0007;
+	minWallThickness[1] = .0005;
 	// ACCURA 25
 	materialNameVec[2] = "Accura 25";
 	EVec[2] = 1625;
@@ -1259,10 +1267,10 @@ int main(int argc, char* argv[])
 		t.Beta = Beta_init[i];
 		t.Lc = Lc_init[i];
 		t.Ls = Ls_init[i];
-		t.materialNum = 0;		// set initial material to Nitinol
+		t.materialNum = 1;		// set initial material to PCL
 
 		t.moment_guess = 0;
-		t.fixedStepSize = true;
+		t.fixedStepSize = false;			// true for design interface, false for teleop
 
 		set.addTube(t);
 	}
@@ -1773,6 +1781,29 @@ void keySelect(unsigned char key, int x, int y)
 		} */
 
 		kappaChange = false;
+	}
+
+	// Write parameters of tubes to file
+	if (key == 'p') {
+		printf("writing tube parameters to file \n");
+		std::ofstream				tubeParameterFile("tubeParams.txt");						// set up file for storing data
+		for(int i=0; i<3; i++ ) {
+			tubeParameterFile << (1/set.m_tubes[i].kappa)*1000 << "\t";
+			tubeParameterFile << (set.m_tubes[i].Ls)*1000 << "\t";
+			tubeParameterFile << set.m_tubes[i].Lc*1000 << "\t";
+			tubeParameterFile << set.m_tubes[i].OD*1000 << "\t";
+			tubeParameterFile << set.m_tubes[i].ID*1000 << "\n";
+		}
+		tubeParameterFile.close();
+	} 
+
+	// for testing position of tumor
+	if(key == '8') {
+		stone_mesh->translate(0,0.002,0);
+	}
+
+	if (key == '9') {
+		stone_mesh->translate(0,-0.002,0);
 	}
 }
 
@@ -5234,27 +5265,27 @@ void setTubeParams(ConcentricTubeSet set) {
 
 	// Set value of OD for each tube
 	OD_init = new float[nTubes];
-	OD_init[0] = 0.0018;
-	OD_init[1] = 0.0025;
-	OD_init[2] = 0.0035; //.35
+	OD_init[0] = .0025;//0.0018;
+	OD_init[1] = .0041;//0.0025;
+	OD_init[2] = .0059;//0.0035; 
 
 	// Set value of ID for each tube
 	ID_init = new float[nTubes];
-	ID_init[0] = 0.0013;
-	ID_init[1] = 0.0020;
-	ID_init[2] = 0.0030;
+	ID_init[0] = .0011; //0.0013;
+	ID_init[1] = .0033; //0.0020;
+	ID_init[2] = .0049; //0.0030;
 
 	// Set value of E for each tube
 	E_init = new float[nTubes];
-	E_init[0] = 50000000000;
-	E_init[1] = 50000000000;
-	E_init[2] = 50000000000;
+	E_init[0] = 2400;
+	E_init[1] = 2400;
+	E_init[2] = 2400;
 
 	// Set value of v for each tube
 	v_init = new float[nTubes];
-	v_init[0] = 0.33;
-	v_init[1] = 0.33;
-	v_init[2] = 0.33;
+	v_init[0] = 0.3;
+	v_init[1] = 0.3;
+	v_init[2] = 0.3;
 
 	// Set value of kappa for each tube
 	kappa_init = new float[nTubes];
@@ -5281,8 +5312,8 @@ void setTubeParams(ConcentricTubeSet set) {
 	Ls_init[2] = 0.08;//0.11;//0.08;
 
 	// Material name
-	materialName = materialNameVec[0];
-	maxStrain = maxStrainVec[0];
+	materialName = materialNameVec[1];
+	maxStrain = maxStrainVec[1];
 
 }
 

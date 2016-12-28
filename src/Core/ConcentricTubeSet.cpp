@@ -61,9 +61,15 @@ struct funcToSolve
 			// convert gslvector f into fvec (eigen vector)
 			fvec(i) = gsl_vector_get (f_gsl,i);
 		}
+
+		// Testing deallocating memory here
+		gsl_vector_free(x_gsl);
+		gsl_vector_free(f_gsl);
+
 		return 0;
 	}
 
+//#define EPS 1e-5
 #define EPS 1e-5
 	int df(const Eigen::VectorXf &xvec, Eigen::MatrixXf &fjac) const
     {
@@ -458,6 +464,17 @@ void kinematics(ConcentricTubeSet &set)
 	//if(BuDet==0) {
 	//	printf("singular \n");
 	//}
+
+
+	// try deallocating all of these
+	/*delete [] set.initConditions;
+	delete [] set.stateV.psiVec;
+	delete [] set.stateV.moment;
+	delete [] set.stateVDot.psiDot;
+	delete [] set.stateVDot.momentDot;
+	delete [] set.state;
+	delete [] set.stateDeriv;
+	delete [] solvedState;*/
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -543,13 +560,13 @@ int solveForwardKinematics(ConcentricTubeSet &set)
 	gsl_odeiv_step * step = gsl_odeiv_step_alloc (T, numStates);
 
 	// ************ testing ****************
-	gsl_odeiv_control * c = gsl_odeiv_control_y_new (1e-7, 0.0);
+	gsl_odeiv_control * c = gsl_odeiv_control_y_new (1e-6, 0.0);
     gsl_odeiv_evolve * e = gsl_odeiv_evolve_alloc (numStates);
 	// *************************************
 
 	gsl_odeiv_system sys = {kinematicFunction, jac, numStates, &set};				// set up system
 	double s = sVec[0], s1 = sVec[1];
-    double h = 1.0e-8; //1.0e-4 // for teleop
+    double h = 5.0e-3; //5.0e-4; //1.0e-8; otherwise? //1.0e-4 // for teleop
 	double *y; double *y_err;
 	y_err = new double[numStates];
 	y = new double[numStates];
@@ -850,7 +867,7 @@ int solveForwardKinematicsFixedStep(ConcentricTubeSet &set)
 
 	gsl_odeiv_system sys = {kinematicFunction, jac, numStates, &set};				// set up system
 	double s = sVec[0], s1 = sVec[1];
-    double h = 5.0e-4; //1.0e-4 // for teleop
+    double h = 5.0e-3; //5.0e-4; // 5.0e-4; otherwise?//1.0e-4 // for teleop
 	double *y; double *y_err;
 	y_err = new double[numStates];
 	y = new double[numStates];
@@ -1097,7 +1114,7 @@ int solveInitConditions(ConcentricTubeSet &set) {
 
 	lm.minimize(xvec);
 
-
+	std::cout << lm.iter << std::endl;
 
 	/*printf("x0: %f \n", xvec(0));
 	printf("x1: %f \n", xvec(1));
@@ -1196,9 +1213,9 @@ int findZeroResVec (const gsl_vector * x, void *params, gsl_vector * f)
 
 	gsl_odeiv_system sys = {kinematicFunction, jac, numStates, &set};		// set up system
 	double s = sVec[0], s1 = sVec[1];
-    double h = 1.0e-8; //1.0e-4;	// for teleop											//**** trade-off between speed and accuracy... ****************
+    double h = 5.0e-3; //5.0e-4; //1.0e-8; otherwise? //1.0e-4;	// for teleop											//**** trade-off between speed and accuracy... ****************
 	double *y; double *y_err;
-	y_err = new double[numStates];
+	//y_err = new double[numStates];
 	y = new double[numStates];
 	for(int i=0; i<numStates; i++) {
 		y[i] = set.initConditions[i];										// set initial conditions
@@ -1269,10 +1286,10 @@ int findZeroResVec (const gsl_vector * x, void *params, gsl_vector * f)
 		for(int j=0; j<numStates; j++) {
 			set.initConditions[j] = y[j];				// ****** does it only give the last state??******
 		}
-		delete y;
+		/*delete y;
 		delete y_err;
 		y_err = new double[numStates];
-		y = new double[numStates];
+		y = new double[numStates];*/
 		for(int k=0; k<numStates; k++) {
 			y[k] = set.initConditions[k];									// set initial conditions
 		}
@@ -1332,7 +1349,9 @@ int findZeroResVec (const gsl_vector * x, void *params, gsl_vector * f)
 		//printf("\n");
 	}
 
-
+	// try deallocating memory here
+	delete y;
+	//delete y_err;
 
 
 	return GSL_SUCCESS;
