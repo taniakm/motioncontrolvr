@@ -566,7 +566,7 @@ int solveForwardKinematics(ConcentricTubeSet &set)
 
 	gsl_odeiv_system sys = {kinematicFunction, jac, numStates, &set};				// set up system
 	double s = sVec[0], s1 = sVec[1];
-    double h = 5.0e-3; //5.0e-4; //1.0e-8; otherwise? //1.0e-4 // for teleop
+    double h = 1.0e-8; //5.0e-4; //1.0e-8; otherwise? //5.0e-3 // for teleop
 	double *y; double *y_err;
 	y_err = new double[numStates];
 	y = new double[numStates];
@@ -867,7 +867,7 @@ int solveForwardKinematicsFixedStep(ConcentricTubeSet &set)
 
 	gsl_odeiv_system sys = {kinematicFunction, jac, numStates, &set};				// set up system
 	double s = sVec[0], s1 = sVec[1];
-    double h = 5.0e-3; //5.0e-4; // 5.0e-4; otherwise?//1.0e-4 // for teleop
+    double h = 5.0e-4; //5.0e-4; // 5.0e-4; otherwise?//5.0e-3 // for teleop
 	double *y; double *y_err;
 	y_err = new double[numStates];
 	y = new double[numStates];
@@ -1114,7 +1114,7 @@ int solveInitConditions(ConcentricTubeSet &set) {
 
 	lm.minimize(xvec);
 
-	std::cout << lm.iter << std::endl;
+	//std::cout << lm.iter << std::endl;
 
 	/*printf("x0: %f \n", xvec(0));
 	printf("x1: %f \n", xvec(1));
@@ -1213,7 +1213,7 @@ int findZeroResVec (const gsl_vector * x, void *params, gsl_vector * f)
 
 	gsl_odeiv_system sys = {kinematicFunction, jac, numStates, &set};		// set up system
 	double s = sVec[0], s1 = sVec[1];
-    double h = 5.0e-3; //5.0e-4; //1.0e-8; otherwise? //1.0e-4;	// for teleop											//**** trade-off between speed and accuracy... ****************
+    double h = 1.0e-8; //5.0e-4; //1.0e-8; otherwise? //5.0e-3;	// for teleop											//**** trade-off between speed and accuracy... ****************
 	double *y; double *y_err;
 	//y_err = new double[numStates];
 	y = new double[numStates];

@@ -94,10 +94,10 @@ cVector3d lastDevPos;
 // Teleoperation variables
 double epsilonPos = 0.001;  //trying 1 mm for now?
 double epsilonOrient = 1;
-double vMax = 0.015; //0.08 ;//.022; //.011; 
-double vMin = 0.004; //0.001; 
-double lambdaPos = 2;//4;
-float deltaT = 0.01; // 0.1; // 0.015; //0.008;					// assumed amount of time that speed was applied
+double vMax = 0.018; //0.015; 
+double vMin = 0.006; //0.004; 
+double lambdaPos = 2;
+float deltaT = 0.012; //0.01; 				// assumed amount of time that speed was applied
 float deltaT2 = 0.035;
 float offsetBeta[NUM_TUBES];
 float offsetAlpha[NUM_TUBES];
@@ -313,7 +313,7 @@ int main(int argc, char* argv[])
     hapticsThread->start(updateHaptics, CTHREAD_PRIORITY_HAPTICS);
     
 	// start the main graphics rendering loop
-    glutTimerFunc(50, graphicsTimer, 0);
+    //glutTimerFunc(50, graphicsTimer, 0);
     glutMainLoop();
    
 	// close everything
@@ -1595,7 +1595,7 @@ void runKinematics(void) {
 		//setInvalidated = true;
 		kinematics(set);
 		//setInvalidated = false;
-		printf("kinematics computed \n");
+		//printf("kinematics computed \n");
 
 		// for debugging
 		/*char *str3 = new char[1024];

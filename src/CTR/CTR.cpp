@@ -114,6 +114,7 @@ cShapeSphere*				posSphere;
 cShapeSphere*				testSphere;
 cShapeSphere*				originSphere;	
 cShapeSphere*				rotateSphere;
+cShapeSphere*				markerSphere[3];
 cMultiMesh*					kidney_mesh;
 cMultiMesh*					liver_mesh;
 cMultiMesh*					tube_mesh;
@@ -228,6 +229,8 @@ float						maxStrainVec[3];					// Vector of max strain values for different mat
 float						maxLength[3];
 float						minWallThickness[3];
 float						maxStrain;
+float						minBetaVal[3] = {-0.22,-0.1,-0.03};
+float						maxBetaVal[3] = {-0.09,-0.05,-0.005};
 cVector3d					a1;
 cVector3d					a2;
 cVector3d					a3;
@@ -248,6 +251,11 @@ cLabel*						warningLabel;						// For warning if parameters are out of range ba
 string						warningName = "";
 cLabel*						waitLabel;
 string						waitName = "Computing configurations. Please wait.";
+bool						savingInitPos = false;
+cVector3d					sZero;
+cVector3d					initTipPos;
+cShapeSphere*				sZeroSphere;
+cShapeSphere*				initTipPosSphere;
 // SIMULATION PARAMETERS
 ConcentricTubeSet*			simulatedSets = NULL;
 int							numValidSets = 0;		
@@ -469,6 +477,7 @@ void close(void);											// function that closes the application
 void updateHaptics(void);									// main haptics simulation loop
 void runKinematics(void);									// to call the kinematics function
 void runSerialComm(void);									// to call serial read function
+void computeInitialPos(void);								// to compute initial pos and orientation of CTR wrt model markers
 
 //------------------------------------------------------------------------------
 // DECLARED FUNCTIONS FOR OCULUS
@@ -570,25 +579,13 @@ int main(int argc, char* argv[])
 
     cout << endl;
     cout << "-----------------------------------" << endl;
-    cout << "CHAI3D" << endl;
-    cout << "Demo: 01-mydevice" << endl;
-    cout << "Copyright 2003-2014" << endl;
+    cout << "SURGEON DESIGN INTERFACE" << endl;
     cout << "-----------------------------------" << endl << endl << endl;
-    cout << "Keyboard Options:" << endl << endl;
-    cout << "[f] - Enable/Disable full screen mode" << endl;
-    cout << "[x] - Exit application" << endl;
-	cout << "[r] - Rotate model right" << endl;
-	cout << "[l] - Rotate model left" << endl;
-	cout << "[u] - Rotate model up" << endl;
-	cout << "[d] - Rotate model down" << endl;
-	cout << "[c] - Rotate model clockwise" << endl;
-	cout << "[w] - Rotate model counter clockwise" << endl;
-	cout << "[1] - Rotate tube right" << endl;
-	cout << "[2] - Rotate tube left" << endl;
-	cout << "[3] - Rotate tube up" << endl;
-	cout << "[4] - Rotate tube down" << endl;
-	cout << "[5] - Rotate tube clockwise" << endl;
-	cout << "[6] - Rotate tube counter clockwise" << endl;
+    cout << "t.fixedStepSize = true" << endl;
+    cout << "[s] - Start data collection" << endl;
+	cout << "[p] - Print tube parameters to screen" << endl;
+	cout << "[w] - Write data to file without quitting" << endl;
+	cout << "[x] - Write data to file and quit" << endl;
     cout << endl << endl;
 
 	//--------------------------------------------------------------------------
@@ -1056,20 +1053,6 @@ int main(int argc, char* argv[])
 	testSphere->setHapticEnabled(true);
 	testSphere->setEnabled(false);
 
-	/*testTool = new cToolCursor(world);
-	testSphere->addChild(testTool);
-	testTool->setRadius(0.1);
-	testTool->setWorkspaceRadius(0.7);
-	testTool->initialize();*/
-
-	// For debugging
-	//debugLine = new cShapeLine(cVector3d(0,0,0), cVector3d(1,0,0));
-	//originSphere->addChild(debugLine);
-	//debugLine->setLineWidth(1.0);
-	////debugLine->setEnabled(false);
-	//debugLine->m_colorPointA.setGreenChartreuse();
-	//debugLine->m_colorPointB.setGreenChartreuse();
-
 	
 	//----------------------------------
 	//- Add sphere for selected points -
@@ -1082,6 +1065,18 @@ int main(int argc, char* argv[])
 		pointSphere[i]->setLocalPos(0,0,0);
 		pointSphere[i]->setEnabled(false);
 	}
+
+	//----------------------------------
+	//------- Add marker spheres -------
+	//----------------------------------
+	for(int i=0; i<3; i++) {
+		markerSphere[i] = new cShapeSphere(0.005);
+		originSphere->addChild(markerSphere[i]);
+		markerSphere[i]->m_material->setPinkMediumVioletRed();
+	}
+	markerSphere[0]->setLocalPos(0.003,-0.03,0.025);
+	markerSphere[1]->setLocalPos(0.003,-0.03,-0.01);
+	markerSphere[2]->setLocalPos(0.045,-0.03,0.025);
 
     //--------------------------------------------------------------------------
     // WIDGETS
@@ -1270,7 +1265,7 @@ int main(int argc, char* argv[])
 		t.materialNum = 1;		// set initial material to PCL
 
 		t.moment_guess = 0;
-		t.fixedStepSize = false;			// true for design interface, false for teleop
+		t.fixedStepSize = true;			// true for design interface, false for teleop
 
 		set.addTube(t);
 	}
@@ -1586,13 +1581,6 @@ void keySelect(unsigned char key, int x, int y)
 		rotateLeftRight(dir, originSphere);
 	}
 
-	// Rotate model UP
-	/*if (key == 'u')
-	{
-		int dir = 1;
-		rotateUpDown(dir, originSphere);
-	}*/
-
 	// Rotate model DOWN
 	if (key == 'd')
 	{
@@ -1606,13 +1594,6 @@ void keySelect(unsigned char key, int x, int y)
 		int dir = 1;
 		rotateCwCcw(dir, originSphere);
 	}
-
-	// Rotate model counterclockwise
-	/*if (key == 'w')
-	{
-		int dir = -1;
-		rotateCwCcw(dir, originSphere);
-	}*/
 
 	// Make mesh transparent
 	if (key == 't')
@@ -1795,11 +1776,15 @@ void keySelect(unsigned char key, int x, int y)
 			tubeParameterFile << set.m_tubes[i].ID*1000 << "\n";
 		}
 		tubeParameterFile.close();
+
+		computeInitialPos();
 	} 
 
 	// for testing position of tumor
 	if(key == '8') {
-		stone_mesh->translate(0,0.002,0);
+		//stone_mesh->translate(0,0.002,0);
+		markerSphere[0]->translate(0,0,0.01);
+		printf("%f %f %f \n",markerSphere[0]->getLocalPos());
 	}
 
 	if (key == '9') {
@@ -4300,7 +4285,7 @@ void calculateConfig(ConcentricTubeSet &set) {
 			}
 		}
 		iter = iter + 1;
-}
+	}
 
 	// Calculate configuration for each alpha/Beta pair and store final configuration info.
 	std::vector<float> rowB = simulatedBeta[0];
@@ -5360,6 +5345,81 @@ void setShowMaterialLabels() {
 		materialOptionLabel[i]->setEnabled(visible);
 	}
 }
+
+
+//------------------------------------------------------------------------------
+// COMPUTE INITIAL POSITION AND ORIENTATION OF CTR WRT MODEL MARKERS
+//------------------------------------------------------------------------------
+void computeInitialPos(void) {
+	// Compute initial Beta values for follow-the-leader
+	float initBetaVal[3];
+	for(int k=nTubes-1; k>=0; k--) {
+		float sigma = set.m_tubes[k].Lc + set.m_tubes[k].Ls;
+		initBetaVal[k] = -sigma + 0.00001 + (0.000001*(nTubes-k-1));
+	}
+	float maxDiff = 0;
+	for(int k=nTubes-1; k>=0; k--) {
+		if(initBetaVal[k]<minBetaVal[k]) {
+			float diff = minBetaVal[k]-initBetaVal[k];
+			if(diff>maxDiff) {
+				maxDiff=diff;
+			}
+		}
+	}
+	ConcentricTubeSet currentSet;
+	currentSet = set;
+	for(int k=nTubes-1; k>=0; k--) {
+		initBetaVal[k] = initBetaVal[k]+maxDiff;
+
+		if(initBetaVal[k]>maxBetaVal[k]) {
+			initBetaVal[k]=maxBetaVal[k];
+		}
+
+		currentSet.m_tubes[k].Beta = initBetaVal[k];
+	}
+	
+	// Compute configuration using initial Beta values
+	tool->setForcesOFF();
+	waitLabel->setEnabled(true);
+	kinematics(currentSet);											// compute kinematics to determine configuration for each time step
+	waitLabel->setEnabled(false);
+	tool->setForcesON();											// turn forces back on
+	
+	// Determine s=0 pos 
+	sZero = cVector3d(currentSet.positionStored.x[0],											// Save position at s=0
+					  currentSet.positionStored.y[0], 
+					  currentSet.positionStored.z[0]);
+	sZeroSphere = new cShapeSphere(0.01);
+	tubeStartSphere->addChild(sZeroSphere);
+	sZeroSphere->m_material->setGreenDark();
+	//printf("sZero: %f %f %f \n",sZero(0), sZero(1), sZero(2));
+	sZeroSphere->setLocalPos(sZero);
+
+	//// Calculate tip and base pos in GLOBAL coord
+	//cVector3d globalSZeroPoint;
+	//cTransform tubeStartSphereToWorldTrans = tubeStartSphere->getGlobalTransform();		// Transform from tubeStartSphere to world frame
+	//tubeStartSphereToWorldTrans.mulr(sZero,globalSZeroPoint);							// global pos of s=0 point
+
+	// Determine tip pos
+	int endInd = currentSet.sStored.size()-1;
+	initTipPos = cVector3d(currentSet.positionStored.x[endInd],											// Save position at s=0
+						   currentSet.positionStored.y[endInd], 
+						   currentSet.positionStored.z[endInd]);
+	initTipPosSphere = new cShapeSphere(0.01);
+	tubeStartSphere->addChild(initTipPosSphere);
+	initTipPosSphere->m_material->setGreenLime();
+	initTipPosSphere->setLocalPos(initTipPos);
+
+	// Calculate distance between s=0 point and markers
+	double d[3];
+	for(int i=0; i<3; i++) {
+		d[i] = (markerSphere[i]->getGlobalPos()).distance(sZeroSphere->getGlobalPos());
+		printf("distance to marker %i: %f \n",i,d[i]);
+	}
+	
+}
+
+
 //------------------------------------------------------------------------------
 // Old functions...
 //------------------------------------------------------------------------------
