@@ -256,6 +256,8 @@ cVector3d					sZero;
 cVector3d					initTipPos;
 cShapeSphere*				sZeroSphere;
 cShapeSphere*				initTipPosSphere;
+double						d[3];
+cVector3d					sZero_inModelFrame;
 // SIMULATION PARAMETERS
 ConcentricTubeSet*			simulatedSets = NULL;
 int							numValidSets = 0;		
@@ -843,6 +845,8 @@ int main(int argc, char* argv[])
 	// Add sphere to act as the overall parent and origin
 	originSphere = new cShapeSphere(0.05);
 	world->addChild(originSphere);
+	/*world->setShowFrame(true);
+	world->setFrameSize(0.2);*/
 	cMaterial originColor;
 	originColor.setPinkHot();
 	originSphere->setMaterial(originColor);
@@ -939,8 +943,8 @@ int main(int argc, char* argv[])
 	if(cLoadFileOBJ(stone_mesh, stone_fileName	 )){
 		printf("--------> stone file loaded!! <-------- \n");
 	}
-	//stone_mesh->translate(0,-.02,.065);		// original stone position
-	stone_mesh->translate(0.014,0,.046);			// attempted tumor position
+	//stone_mesh->translate(0.014,0,.046);			// attempted tumor position
+	stone_mesh->translate(0.02,-0.016,.042);
 	stone_mesh->setShowEnabled(true);
 	stone_mesh->setUseVertexColors(true);
 	stone_mesh->setUseMaterial(true);
@@ -1023,9 +1027,7 @@ int main(int argc, char* argv[])
 	//----------------------------------
 	//- Add sphere for origin of tube --
 	//----------------------------------
-	tubeStartSphere = new cShapeSphere(0.03);
-	//tubeStartSphere->setLocalPos(0,-0.1,-0.2);
-	//world->addChild(tubeStartSphere);
+	tubeStartSphere = new cShapeSphere(0.01);
 	originSphere->addChild(tubeStartSphere);
 	tubeStartSphere->setLocalPos(0,-0.1,0);
 	tubeStartSphere->m_material->setPink();
@@ -1066,17 +1068,17 @@ int main(int argc, char* argv[])
 		pointSphere[i]->setEnabled(false);
 	}
 
-	//----------------------------------
-	//------- Add marker spheres -------
-	//----------------------------------
-	for(int i=0; i<3; i++) {
-		markerSphere[i] = new cShapeSphere(0.005);
-		originSphere->addChild(markerSphere[i]);
-		markerSphere[i]->m_material->setPinkMediumVioletRed();
-	}
-	markerSphere[0]->setLocalPos(0.003,-0.03,0.025);
-	markerSphere[1]->setLocalPos(0.003,-0.03,-0.01);
-	markerSphere[2]->setLocalPos(0.045,-0.03,0.025);
+	////----------------------------------
+	////------- Add marker spheres -------
+	////----------------------------------
+	//for(int i=0; i<3; i++) {
+	//	markerSphere[i] = new cShapeSphere(0.005);
+	//	originSphere->addChild(markerSphere[i]);
+	//	markerSphere[i]->m_material->setPinkMediumVioletRed();
+	//}
+	//markerSphere[0]->setLocalPos(0.003,-0.03,0.025);
+	//markerSphere[1]->setLocalPos(0.003,-0.03,-0.01);
+	//markerSphere[2]->setLocalPos(0.045,-0.03,0.025);
 
     //--------------------------------------------------------------------------
     // WIDGETS
@@ -1234,10 +1236,10 @@ int main(int argc, char* argv[])
 	//minWallThickness[1] = .0007;
 	// PCL
 	materialNameVec[1] = "PCL";
-	EVec[1] = 2400;
-	vVec[1] = 0.3;				// estimated based on poisson's ratio of polyethylene/nylons/plastics
+	EVec[1] = 2400000000;
+	vVec[1] = 0.33;				// estimated based on poisson's ratio of polyethylene/nylons/plastics
 	maxStrainVec[1] = .2;
-	maxLength[1] = .350; //[m]
+	maxLength[1] = .34; //[m]
 	minWallThickness[1] = .0005;
 	// ACCURA 25
 	materialNameVec[2] = "Accura 25";
@@ -1567,87 +1569,12 @@ void keySelect(unsigned char key, int x, int y)
         }
     }
 
-	// Rotate model RIGHT
-	if (key == 'r')
-	{
-		int dir = 1;
-		rotateLeftRight(dir, originSphere);
-	}
-
-	// Rotate model LEFT
-	if (key == 'l')
-	{
-		int dir = -1;
-		rotateLeftRight(dir, originSphere);
-	}
-
-	// Rotate model DOWN
-	if (key == 'd')
-	{
-		int dir = -1;
-		rotateUpDown(dir, originSphere);
-	}
-
-	// Rotate model clockwise
-	if (key == 'c')
-	{
-		int dir = 1;
-		rotateCwCcw(dir, originSphere);
-	}
-
 	// Make mesh transparent
 	if (key == 't')
 	{
 		cMultiMesh* transparentMesh;
 		transparentMesh = liver_mesh;
 		setTransparent(transparentMesh);
-	}
-	
-	// Rotate tube RiGHT
-	if (key == '1') 
-	{
-		int dir = 1;
-		rotateLeftRight(dir, tubeStartSphere);
-	}
-
-	// Rotate tube LEFT
-	if (key == '2')
-	{
-		int dir = -1;
-		rotateLeftRight(dir, tubeStartSphere);
-	}
-
-	// Rotate tube UP
-	if (key == '3')
-	{
-		int dir = 1;
-		rotateUpDown(dir, tubeStartSphere);
-	}
-
-	// Rotate tube DOWN
-	if (key == '4')
-	{
-		int dir = -1;
-		rotateUpDown(dir, tubeStartSphere);
-	}
-
-	// Rotate tube clockwise
-	if (key == '5')
-	{
-		int dir = 1;
-		rotateCwCcw(dir, tubeStartSphere);
-	}
-
-	// Rotate tube counterclockwise
-	if (key == '6')
-	{
-		int dir = -1;
-		rotateCwCcw(dir, tubeStartSphere);}
-
-	// Rotate model and tube
-	if (key == '7') 
-	{
-		rotateAll();
 	}
 
 	// Compute kinematics
@@ -1693,9 +1620,7 @@ void keySelect(unsigned char key, int x, int y)
 		pointSphere[3]->setEnabled(true);
 
 
-		computeTubeParam(set, circParam);
-
-		
+		computeTubeParam(set, circParam);	
 
 	}
 
@@ -1729,8 +1654,6 @@ void keySelect(unsigned char key, int x, int y)
 		printf("eye separation: %f \n",userEyeSeparation);
 	}
 	
-
-
 	if (key == 'b')
 	{
 		char *buffer;
@@ -1766,6 +1689,7 @@ void keySelect(unsigned char key, int x, int y)
 
 	// Write parameters of tubes to file
 	if (key == 'p') {
+		computeInitialPos();
 		printf("writing tube parameters to file \n");
 		std::ofstream				tubeParameterFile("tubeParams.txt");						// set up file for storing data
 		for(int i=0; i<3; i++ ) {
@@ -1775,9 +1699,11 @@ void keySelect(unsigned char key, int x, int y)
 			tubeParameterFile << set.m_tubes[i].OD*1000 << "\t";
 			tubeParameterFile << set.m_tubes[i].ID*1000 << "\n";
 		}
-		tubeParameterFile.close();
+		tubeParameterFile << sZero_inModelFrame(0) << "\t";
+		tubeParameterFile << sZero_inModelFrame(1) << "\t";
+		tubeParameterFile << sZero_inModelFrame(2) << "\n";
 
-		computeInitialPos();
+		tubeParameterFile.close();
 	} 
 
 	// for testing position of tumor
@@ -1789,6 +1715,23 @@ void keySelect(unsigned char key, int x, int y)
 
 	if (key == '9') {
 		stone_mesh->translate(0,-0.002,0);
+	}
+
+	// show frames for debugging
+	if(key=='d'){
+		if(!(originSphere->getEnabled())){
+			originSphere->setEnabled(true);
+			originSphere->setShowFrame(true);
+			originSphere->setFrameSize(0.2);
+			tubeStartSphere->setEnabled(true);
+			tubeStartSphere->setFrameSize(0.1);
+			tubeStartSphere->setShowFrame(true);
+		} else {
+			originSphere->setEnabled(false);
+			originSphere->setShowFrame(false);
+			tubeStartSphere->setEnabled(false);
+			tubeStartSphere->setShowFrame(false);
+		}
 	}
 }
 
@@ -3145,7 +3088,7 @@ void updateHaptics(void)
 									}			
 									if(sphereInd < lastSphereInd) {
 										for(int i=sphereInd; i<lastSphereInd; i++) {
-											tube.tubeSphere[i]->setMaterial(tubeColor[k-1]);	// spheres from endInd to lastEndInd, turn back to original color
+  											tube.tubeSphere[i]->setMaterial(tubeColor[k-1]);	// spheres from endInd to lastEndInd, turn back to original color
 										}
 									}
 								} else {		// case for innermost tube
@@ -3892,7 +3835,7 @@ void updateTubeLength(ConcentricTubeSet &set, int tubeIndex, float deltaLs, floa
 		if(tubeIndex==0) {								// innermost tube
 			float prevTubeLength = (set.m_tubes[tubeIndex+1].Ls) + (set.m_tubes[tubeIndex+1].Lc);
 			if(newLengthTot>prevTubeLength) {			// make sure it's still longer than previous tube
-				set.m_tubes[tubeIndex].Ls = (set.m_tubes[tubeIndex].Ls) + deltaLs;
+				//set.m_tubes[tubeIndex].Ls = (set.m_tubes[tubeIndex].Ls) + deltaLs;
 				set.m_tubes[tubeIndex].Lc = (set.m_tubes[tubeIndex].Lc) + deltaLc;
 				warningLabel->setEnabled(false);
 			} else {									// if it isn't, then don't change tube length
@@ -3902,7 +3845,7 @@ void updateTubeLength(ConcentricTubeSet &set, int tubeIndex, float deltaLs, floa
 		} else if(tubeIndex == nTubes-1) {				// outermost tube
 			float nextTubeLength = (set.m_tubes[tubeIndex-2].Ls) + (set.m_tubes[tubeIndex-2].Lc);
 			if(newLengthTot<nextTubeLength) {			// make sure it's still shorter than next tube
-				set.m_tubes[tubeIndex].Ls = (set.m_tubes[tubeIndex].Ls) + deltaLs;
+				//set.m_tubes[tubeIndex].Ls = (set.m_tubes[tubeIndex].Ls) + deltaLs;
 				set.m_tubes[tubeIndex].Lc = (set.m_tubes[tubeIndex].Lc) + deltaLc;
 				warningLabel->setEnabled(false);
 			} else {									// if it isn't, then don't change tube length
@@ -3913,7 +3856,7 @@ void updateTubeLength(ConcentricTubeSet &set, int tubeIndex, float deltaLs, floa
 			float prevTubeLength = (set.m_tubes[tubeIndex+1].Ls) + (set.m_tubes[tubeIndex+1].Lc);
 			float nextTubeLength = (set.m_tubes[tubeIndex-1].Ls) + (set.m_tubes[tubeIndex-1].Lc);
 			if((newLengthTot<nextTubeLength) && (newLengthTot>prevTubeLength)) {			// make sure it's still shorter than next tube and longer than previous tube
-				set.m_tubes[tubeIndex].Ls = (set.m_tubes[tubeIndex].Ls) + deltaLs;
+				//set.m_tubes[tubeIndex].Ls = (set.m_tubes[tubeIndex].Ls) + deltaLs;
 				set.m_tubes[tubeIndex].Lc = (set.m_tubes[tubeIndex].Lc) + deltaLc;
 				warningLabel->setEnabled(false);
 			} else {									// if it isn't, then don't change tube length
@@ -5138,16 +5081,30 @@ void computeInitOrientation(ConcentricTubeSet set) {
 
 	gsl_matrix *R = gsl_matrix_alloc(3,3);
 	gsl_linalg_matmult_mod (V, GSL_LINALG_MOD_NONE, A, GSL_LINALG_MOD_TRANSPOSE, R);		// R = V*A'
-	
 
-	//cMatrix3d currentRot = tubeStartSphere->getLocalRot();
 	cMatrix3d Rot;											// Get best rotation matrix
 	Rot = cMatrix3d(gsl_matrix_get(R,0,0),gsl_matrix_get(R,0,1),gsl_matrix_get(R,0,2),
 					gsl_matrix_get(R,1,0),gsl_matrix_get(R,1,1),gsl_matrix_get(R,1,2),
 					gsl_matrix_get(R,2,0),gsl_matrix_get(R,2,1),gsl_matrix_get(R,2,2));
-	//Rot = cTranspose(Rot);
+
+	// check to make sure that R is right handed
+	double detRot = Rot.det();
+	if(detRot<0) {
+		gsl_matrix *Vnew = gsl_matrix_alloc(3,3);
+		gsl_matrix *D = gsl_matrix_alloc(3,3);
+		gsl_matrix_set_zero(D);
+		gsl_matrix_set(D,0,0,1);
+		gsl_matrix_set(D,1,1,1);
+		gsl_matrix_set(D,2,2,-1);
+		//printMatrix(D,"C:/Users/Tania/Documents/FilesForVisualization/D.dat");
+		gsl_linalg_matmult_mod (V, GSL_LINALG_MOD_NONE, D, GSL_LINALG_MOD_NONE, Vnew);
+		gsl_linalg_matmult_mod (Vnew, GSL_LINALG_MOD_NONE, A, GSL_LINALG_MOD_TRANSPOSE, R);		// R = Vnew*A'
+		Rot = cMatrix3d(gsl_matrix_get(R,0,0),gsl_matrix_get(R,0,1),gsl_matrix_get(R,0,2),
+					gsl_matrix_get(R,1,0),gsl_matrix_get(R,1,1),gsl_matrix_get(R,1,2),
+					gsl_matrix_get(R,2,0),gsl_matrix_get(R,2,1),gsl_matrix_get(R,2,2));
+	}
+	
 	tubeStartSphere->setLocalRot(Rot);
-	//tubeStartSphere->translate(shiftVec);
 
 	printf("rotated \n");
 
@@ -5244,8 +5201,8 @@ void printTube(ConcentricTubeSet set) {
 void setTubeParams(ConcentricTubeSet set) {
 	// Set value of alpha for each tube
 	alpha_init = new float[nTubes];
-	alpha_init[0] = M_PI/2;//-2.81074452;		
-	alpha_init[1] = -M_PI/2;//0.2627804;		
+	alpha_init[0] = 0;//-2.81074452;		
+	alpha_init[1] = 0;//0.2627804;		
 	alpha_init[2] = 0;
 
 	// Set value of OD for each tube
@@ -5262,15 +5219,15 @@ void setTubeParams(ConcentricTubeSet set) {
 
 	// Set value of E for each tube
 	E_init = new float[nTubes];
-	E_init[0] = 2400;
-	E_init[1] = 2400;
-	E_init[2] = 2400;
+	E_init[0] = 2400000000;
+	E_init[1] = 2400000000;
+	E_init[2] = 2400000000;
 
 	// Set value of v for each tube
 	v_init = new float[nTubes];
-	v_init[0] = 0.3;
-	v_init[1] = 0.3;
-	v_init[2] = 0.3;
+	v_init[0] = 0.33;
+	v_init[1] = 0.33;
+	v_init[2] = 0.33;
 
 	// Set value of kappa for each tube
 	kappa_init = new float[nTubes];
@@ -5292,9 +5249,9 @@ void setTubeParams(ConcentricTubeSet set) {
 
 	// Set value of Ls for each tube
 	Ls_init = new float[nTubes];
-	Ls_init[0] = 0.14;//0.13;//0.14;
-	Ls_init[1] = 0.10;//0.12;//0.10;
-	Ls_init[2] = 0.08;//0.11;//0.08;
+	Ls_init[0] = 0.12;//0.13;//0.14;
+	Ls_init[1] = 0.09;//0.12;//0.10;
+	Ls_init[2] = 0.05;//0.11;//0.08;
 
 	// Material name
 	materialName = materialNameVec[1];
@@ -5351,13 +5308,24 @@ void setShowMaterialLabels() {
 // COMPUTE INITIAL POSITION AND ORIENTATION OF CTR WRT MODEL MARKERS
 //------------------------------------------------------------------------------
 void computeInitialPos(void) {
+	simulationModeOn = true;
+	// Add marker spheres 
+	/*for(int i=0; i<3; i++) {
+		markerSphere[i] = new cShapeSphere(0.005);
+		originSphere->addChild(markerSphere[i]);
+		markerSphere[i]->m_material->setPinkMediumVioletRed();
+	}
+	markerSphere[0]->setLocalPos(0.003,-0.03,0.025);
+	markerSphere[1]->setLocalPos(0.003,-0.03,-0.01);
+	markerSphere[2]->setLocalPos(0.045,-0.03,0.025);*/
+
 	// Compute initial Beta values for follow-the-leader
 	float initBetaVal[3];
 	for(int k=nTubes-1; k>=0; k--) {
 		float sigma = set.m_tubes[k].Lc + set.m_tubes[k].Ls;
-		initBetaVal[k] = -sigma + 0.00001 + (0.000001*(nTubes-k-1));
+		initBetaVal[k] = -sigma + 0.001 + (0.000001*(nTubes-k-1));
 	}
-	float maxDiff = 0;
+	/*float maxDiff = 0;
 	for(int k=nTubes-1; k>=0; k--) {
 		if(initBetaVal[k]<minBetaVal[k]) {
 			float diff = minBetaVal[k]-initBetaVal[k];
@@ -5365,10 +5333,23 @@ void computeInitialPos(void) {
 				maxDiff=diff;
 			}
 		}
-	}
+	}*/
+
 	ConcentricTubeSet currentSet;
 	currentSet = set;
 	for(int k=nTubes-1; k>=0; k--) {
+		if(initBetaVal[k]<minBetaVal[k]) {
+			// try making Ls shorter if beta value is smaller than min value in order for tips to be aligned
+			currentSet.m_tubes[k].Ls = currentSet.m_tubes[k].Ls - (minBetaVal[k]-initBetaVal[k]);
+			initBetaVal[k] = initBetaVal[k]+(minBetaVal[k]-initBetaVal[k]);
+		}
+		currentSet.m_tubes[k].Beta = initBetaVal[k];
+		printf("Beta: %f \n",currentSet.m_tubes[k].Beta);
+	}
+
+
+	
+	/*for(int k=nTubes-1; k>=0; k--) {
 		initBetaVal[k] = initBetaVal[k]+maxDiff;
 
 		if(initBetaVal[k]>maxBetaVal[k]) {
@@ -5376,7 +5357,7 @@ void computeInitialPos(void) {
 		}
 
 		currentSet.m_tubes[k].Beta = initBetaVal[k];
-	}
+	}*/
 	
 	// Compute configuration using initial Beta values
 	tool->setForcesOFF();
@@ -5395,11 +5376,6 @@ void computeInitialPos(void) {
 	//printf("sZero: %f %f %f \n",sZero(0), sZero(1), sZero(2));
 	sZeroSphere->setLocalPos(sZero);
 
-	//// Calculate tip and base pos in GLOBAL coord
-	//cVector3d globalSZeroPoint;
-	//cTransform tubeStartSphereToWorldTrans = tubeStartSphere->getGlobalTransform();		// Transform from tubeStartSphere to world frame
-	//tubeStartSphereToWorldTrans.mulr(sZero,globalSZeroPoint);							// global pos of s=0 point
-
 	// Determine tip pos
 	int endInd = currentSet.sStored.size()-1;
 	initTipPos = cVector3d(currentSet.positionStored.x[endInd],											// Save position at s=0
@@ -5411,12 +5387,82 @@ void computeInitialPos(void) {
 	initTipPosSphere->setLocalPos(initTipPos);
 
 	// Calculate distance between s=0 point and markers
-	double d[3];
+	/*cVector3d globalSZeroPoint;
+	cTransform tubeStartSphereToWorldTrans = tubeStartSphere->getGlobalTransform();		// Transform from tubeStartSphere to world frame
 	for(int i=0; i<3; i++) {
-		d[i] = (markerSphere[i]->getGlobalPos()).distance(sZeroSphere->getGlobalPos());
+		//d[i] = (markerSphere[i]->getGlobalPos()).distance(sZeroSphere->getGlobalPos());
+		tubeStartSphereToWorldTrans.mulr(sZero,globalSZeroPoint);							// global pos of s=0 point
+		d[i] = (markerSphere[i]->getGlobalPos()).distance(globalSZeroPoint);
 		printf("distance to marker %i: %f \n",i,d[i]);
-	}
+	}*/
+
+
+	//cTransform world_T_sZero = tubeStartSphere->getGlobalTransform();						// world_T_sZero
+	//cTransform world_T_model = originSphere->getGlobalTransform();							// world_T_model
+	//world_T_model.invert();
+	//cTransform model_T_world = world_T_model;												// model_T_world
+	//world_T_sZero.mul(model_T_world);														// model_T_sZero
+	//cTransform model_T_sZero = world_T_sZero;
+	//cVector3d modelFrameSZero;
+	//model_T_sZero.mulr(sZero,modelFrameSZero);
+	//printf("vector: %f %f %f \n", modelFrameSZero(0),modelFrameSZero(1),modelFrameSZero(2));
+
+	cTransform model_T_tube = tubeStartSphere->getLocalTransform();
+	model_T_tube.mulr(sZero,sZero_inModelFrame);
+
+	// to check and make sure the vector is correct
+	/*cShapeSphere *sphere1;
+	sphere1 = new cShapeSphere(0.03);
+	originSphere->addChild(sphere1);
+	sphere1->m_material->setPurple();
+	sphere1->setLocalPos(sZero_inModelFrame);*/
 	
+	//Finding the yaw, pitch, roll angles
+	/*cMatrix3d R = model_T_tube.getLocalRot();
+	double thetaX;
+	double thetaY;
+	double thetaZ;
+	if(R(0,2)<1) {
+		if(R(0,2)>-1) {
+			thetaY = asin(R(0,2));
+			thetaX = atan2(-R(1,2),R(2,2));
+			thetaZ = atan2(-R(0,1),R(0,0));
+		} else {
+			thetaY = -M_PI/2;
+			thetaX = -atan2(R(1,0),R(1,1));
+			thetaZ = 0;
+		}
+	} else {
+		thetaY = M_PI/2;
+		thetaX = atan2(R(1,0),R(1,1));
+		thetaZ = 0;
+	}
+	thetaY = thetaY*180/M_PI;
+	thetaX = thetaX*180/M_PI;
+	thetaZ = thetaZ*180/M_PI;
+	printf("thetaX: %f thetaY: %f thetaZ: %f \n",thetaX,thetaY,thetaZ);*/
+
+	// testing right handedness of rotation matrices
+	/*cMatrix3d originRot = originSphere->getGlobalRot();
+	cMatrix3d tubeRot = tubeStartSphere->getLocalRot();
+	printf("det: %f \n",tubeRot.det());*/
+
+	cShapeLine* ray;
+	cVector3d laserPoint;
+	cVector3d endPoint;
+	cVector3d laserPoint_tubeFrame = sZero + cVector3d(0.0135,0,0);	// offset for laser in CTR frame
+	cVector3d endPoint_tubeFrame = cVector3d(laserPoint_tubeFrame(0),laserPoint_tubeFrame(1),laserPoint_tubeFrame(2)+0.25);
+	model_T_tube.mulr(laserPoint_tubeFrame,laserPoint);
+	model_T_tube.mulr(endPoint_tubeFrame,endPoint);
+
+	ray = new cShapeLine(laserPoint,endPoint);
+	originSphere->addChild(ray);
+	ray->setLineWidth(10);
+	ray->setUseMaterial(true);
+	ray->m_material->setPinkMediumVioletRed();
+	
+	
+	simulationModeOn = false;
 }
 
 

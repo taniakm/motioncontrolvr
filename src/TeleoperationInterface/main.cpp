@@ -1,9 +1,14 @@
 //------------------------------------------------------------------------------
 #define WIN32
 
+
 //#define TESTING_TELEOP
 
 #include "main.h"
+
+#include <iostream>
+#include <fstream>
+#include <conio.h>
 
 // for finding memory leaks
 #include <stdlib.h>
@@ -112,6 +117,9 @@ float BetaMinVec[NUM_TUBES];
 float BetaMaxVec[NUM_TUBES];
 bool BetaMinHit[NUM_TUBES] = {false,false,false};
 bool BetaMaxHit[NUM_TUBES] = {false,false,false};
+float Beta_designed[NUM_TUBES] = {-0.2, -0.1, -0.04};		// ENTER BETA DESIGNED HERE BASED ON INTERFACE RESULTS
+float Beta_initMeasured[NUM_TUBES] = {-0.245, -0.125, -0.05}; // ENTER INITIAL BETA MEASURED 
+float limitDesiredReached[NUM_TUBES] = {false,false,false};
 
 // Motion control variables
 float deltaPos_des[NUM_TUBES];
@@ -151,6 +159,14 @@ bool rotModeRecognized = false;
 // For tissue driving tests
 float posInitVec_tissueDriving[NUM_TUBES];
 float posIncrement[NUM_TUBES];
+
+//------------------------------------------------------------------------------
+// DATA COLLECTION VARIABLES
+//------------------------------------------------------------------------------
+cThread*					dataThread;								// thread to run data collection
+int							fileNum = 1;	
+std::ofstream				teleopDataFile("teleopData.txt");						// set up file for storing data
+void collectData(void);
 
 //------------------------------------------------------------------------------
 // DECLARED FUNCTIONS
@@ -311,6 +327,12 @@ int main(int argc, char* argv[])
     // create a thread which starts the main haptics rendering loop
     cThread* hapticsThread = new cThread();
     hapticsThread->start(updateHaptics, CTHREAD_PRIORITY_HAPTICS);
+
+	// create a thread which starts data collection (don't start until key stroke)
+	dataThread = new cThread();
+	// precision clock: Start clock running
+    clock.reset();
+	clock.start();
     
 	// start the main graphics rendering loop
     //glutTimerFunc(50, graphicsTimer, 0);
@@ -344,6 +366,21 @@ void keySelect(unsigned char key, int x, int y)
 	// option ESC: exit
     if ((key == 27) || (key == 'x'))
     {
+		for (int i=0; i < data.size(); i++) {
+			// write out time data
+			teleopDataFile << "timeStamp: " << data[i].time << "\t" << "\t";
+			// write out alpha values
+			teleopDataFile << "alpha0: " << data[i].alpha0 << "\t" << "\t";			
+			teleopDataFile << "alpha1: " << data[i].alpha1 << "\t" << "\t";
+			teleopDataFile << "alpha2: " << data[i].alpha2 << "\t" << "\t";
+			// write out Beta values
+			teleopDataFile << "Beta0: " << data[i].Beta0 << "\t" << "\t";			
+			teleopDataFile << "Betaa1: " << data[i].Beta1 << "\t" << "\t";
+			teleopDataFile << "Beta2: " << data[i].Beta2 << "\n";
+		}
+		teleopDataFile.close();
+		printf("data written to file \n");
+
         close();
         exit(0);
     }
@@ -438,41 +475,41 @@ void keySelect(unsigned char key, int x, int y)
 
 			// Tube 0 parameters
 			ConcentricTubeSet::tube t0;
-			t0.alpha = 0; 
-			t0.OD = 0.0024; 
-			t0.ID = 0.001; 
+			t0.alpha = 2.58068; //0; 
+			t0.OD = 0.0025; //0.0024; 
+			t0.ID = 0.0011; //0.001; 
 			t0.E = 2400000000;
 			t0.v = 0.33;
-			t0.kappa = -25; //-50; 
-			t0.Beta = -0.15; //-0.22; // min
-			t0.Lc = 0.03; 
-			t0.Ls = 0.21; 
+			t0.kappa = 30.817; //-25; //-50; 
+			t0.Beta = -0.245; //-0.15; //-0.22; // min
+			t0.Lc = 0.0304616; //0.03; 
+			t0.Ls = 0.25453; //0.21; 
 			set.addTube(t0);
 
 			// Tube 1 parameters
 			ConcentricTubeSet::tube t1;
-			t1.alpha = 0; 
-			t1.OD = 0.0038; 
-			t1.ID = 0.003; 
+			t1.alpha = -3.09453; //0; 
+			t1.OD = 0.0041; //0.0038; 
+			t1.ID = 0.0033; //0.003; 
 			t1.E = 2400000000;
 			t1.v = 0.33;
-			t1.kappa = -6.666; // -5.555
-			t1.Beta = -0.085; //-0.1; // min
-			t1.Lc = 0.07; 
-			t1.Ls = 0.095; //0.10;
+			t1.kappa = 88.8215; //-6.666; // -5.555
+			t1.Beta = -0.125; //-0.085; //-0.1; // min
+			t1.Lc = 0.0150775; //0.07; 
+			t1.Ls = 0.139452; //0.095; //0.10;
 			set.addTube(t1);
 
 			// Tube 2 parameters
 			ConcentricTubeSet::tube t2;
 			t2.alpha = 0;
-			t2.OD = 0.0054; 
-			t2.ID = 0.0044;
+			t2.OD = 0.0059; //0.0054; 
+			t2.ID = 0.0049; //0.0044;
 			t2.E = 2400000000;
 			t2.v = 0.33;
-			t2.kappa = -4; //-5;  
-			t2.Beta = -0.03; //-0.03;
-			t2.Lc = 0.04;
-			t2.Ls = 0.02; 
+			t2.kappa = 27.1186; //-4; //-5;  
+			t2.Beta = -0.05; //-0.03; //-0.03;
+			t2.Lc = 0.02945; //0.04;
+			t2.Ls = 0.05; //0.02; 
 			set.addTube(t2);
 		} else {			// load the entered tube parameters
 			for(int i=0; i<tubeNum; i++) {
@@ -628,6 +665,8 @@ void keySelect(unsigned char key, int x, int y)
 			robot.m_tubeControllers[2].rotController->Stop();
 		}
 		
+		// START DATA COLLECTION
+		dataThread->start(collectData, CTHREAD_PRIORITY_HAPTICS);
 	}
 
 	if(key=='p') {
@@ -1217,6 +1256,14 @@ void updateHaptics(void)
 				}
 				// send command to motor
 				controlRobotPos(robot, Beta_des, alpha_des);
+
+				//// TRY PRINTING OUT TO USER IF THEIR BETA VALUE HAS REACH DESIRED VALUE BASED ON INTERFACE
+				//if((Beta_initMeasured[2] + Beta_des[2])<Beta_designed[2]) {
+				//	printf("REACHED DESIRED INSERTION POINT FOR TUBE 2, STOP INSERTING \n");
+				//} 
+				//if((Beta_initMeasured[1] + Beta_des[1])<Beta_designed[1]) {
+				//	printf("REACHED DESIRED INSERTION POINT FOR TUBE 1, STOP INSERTING \n");
+				//}
 			} else if(tissueDrivingTests) {
 				/////////////////////////////////////////////////////////////////////
 				// FOR DRIVING THROUGH TISSUE
@@ -1715,7 +1762,15 @@ void controlRobotPos(CTRControl robot, float desPos[NUM_TUBES], float desRot[NUM
 		// for debugging
 		qPrev(i+NUM_TUBES) = currPosMM/1000+offsetBeta[i];	// convert encoder reading to absolute q in m (with offset added back in) 
 		qPrev(i) = currRotDeg*M_PI/180.0+offsetAlpha[i];
-
+		// TRY PRINTING OUT TO USER IF THEIR BETA VALUE HAS REACH DESIRED VALUE BASED ON INTERFACE
+		if(!limitDesiredReached[i]) {
+			if((currPosMM/1000+Beta_initMeasured[i])>Beta_designed[i]) {
+				printf("REACHED DESIRED INSERTION POINT FOR TUBE %i, STOP INSERTING \n", i);
+				limitDesiredReached[i] = true;
+				MessageBeep(0xFFFFFFFF);
+			} 
+		}
+		
 		// Move insertion motor
 		if(desPos[i]!=currPosMM) {
 			float pos_desMM = desPos[i];
@@ -1828,4 +1883,25 @@ Eigen::MatrixXf getJpseudoPos(Eigen::MatrixXf Jpseudo) {
 	}
 
 	return JpseudoPos;
+}
+
+
+//------------------------------------------------------------------------------
+// Data collection
+//------------------------------------------------------------------------------
+void collectData(void) {
+	while(simulationRunning) {
+		teleopDataStruct currTeleopData;
+		currTeleopData.time = clock.getCurrentTimeSeconds();			// get current time
+		currTeleopData.alpha0 = qPrev(0);
+		currTeleopData.alpha1 = qPrev(1);
+		currTeleopData.alpha2 = qPrev(2);
+		currTeleopData.Beta0 = qPrev(3);
+		currTeleopData.Beta1 = qPrev(4);
+		currTeleopData.Beta2 = qPrev(5);
+
+		data.push_back(currTeleopData);
+		// Delay loop
+		Sleep(50);			// collect data at 
+	}
 }
